@@ -1,0 +1,12 @@
+# npm package            binary it provides (skipped if already on PATH)
+pnpm                       pnpm
+typescript                 tsc
+typescript-language-server typescript-language-server
+@vue/language-server       vue-language-server
+vercel                     vercel
+@openai/codex              codex
+
+# Uncomment on VMs that need them (both used in trackstreet-ui):
+# @fission-ai/openspec     openspec
+# agent-browser            agent-browser
+# yarn                     yarn

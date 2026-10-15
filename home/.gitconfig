@@ -1,0 +1,14 @@
+[init]
+	defaultBranch = main
+[user]
+	email = leon.dore@gmail.com
+	name = Leon Dore
+[core]
+	editor = nvim
+[color]
+	ui = auto
+[alias]
+	co = checkout
+# Machine-specific overrides (not tracked), e.g. a work email on work VMs
+[include]
+	path = ~/.gitconfig.local

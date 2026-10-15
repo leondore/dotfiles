@@ -1,0 +1,4 @@
+# go install target                               binary
+golang.org/x/tools/gopls@latest                    gopls
+honnef.co/go/tools/cmd/staticcheck@latest          staticcheck
+github.com/pressly/goose/v3/cmd/goose@latest       goose
