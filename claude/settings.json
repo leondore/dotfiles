@@ -32,9 +32,15 @@
     "mattpocock-skills@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true
+    "php-lsp@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": true
   },
   "theme": "dark",
   "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true
+  "agentPushNotifEnabled": true,
+  "deniedMcpServers": [
+    {
+      "serverUrl": "https://mcp.cloudflare.com/mcp"
+    }
+  ]
 }

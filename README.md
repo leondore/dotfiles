@@ -8,9 +8,9 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Area | Tools |
 | --- | --- |
 | Shell | zsh (login shell), zsh-autosuggestions, starship, fzf (keybindings), fd, ripgrep, tmux |
-| Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, codex |
+| Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
-| AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills; ccstatusline with my config), opencode |
+| AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
 | Extras | turso, bat, [herdr](https://herdr.dev) (agent-aware multiplexer; toggle with `EXTRAS`) |
 

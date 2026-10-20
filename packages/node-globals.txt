@@ -4,6 +4,7 @@ typescript                 tsc
 typescript-language-server typescript-language-server
 @vue/language-server       vue-language-server
 vercel                     vercel
+wrangler                   wrangler
 @openai/codex              codex
 intelephense               intelephense
 agent-browser              agent-browser
