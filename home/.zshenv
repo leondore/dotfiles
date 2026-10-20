@@ -4,7 +4,6 @@ typeset -U path PATH
 
 export GOPATH="$HOME/go"
 export BUN_INSTALL="$HOME/.bun"
-export DENO_INSTALL="$HOME/.deno"
 export CODEX_HOME="$HOME/.codex"
 export EDITOR=nvim
 export PHP_INI_SCAN_DIR="$HOME/.config/herd-lite/bin"   # php.new php.ini (CA bundle)
@@ -14,7 +13,6 @@ path=(
   "$HOME/.config/herd-lite/bin"
   "$HOME/.local/share/npm-global/bin"
   "$BUN_INSTALL/bin"
-  "$DENO_INSTALL/bin"
   "$HOME/.cargo/bin"
   "$GOPATH/bin"
   /usr/local/go/bin

@@ -7,7 +7,7 @@ HISTSIZE=1000
 SAVEHIST=1000
 HISTFILE=~/.zsh_history
 
-# Completion (generated completions for fnm/deno land in ~/.zsh/completion)
+# Completion (generated completions for fnm land in ~/.zsh/completion)
 fpath=(~/.zsh/completion $fpath)
 autoload -Uz compinit
 compinit

@@ -12,7 +12,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills; ccstatusline with my config), opencode |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
-| Extras | deno, turso, bat, [herdr](https://herdr.dev) (agent-aware multiplexer; toggle with `EXTRAS`) |
+| Extras | turso, bat, [herdr](https://herdr.dev) (agent-aware multiplexer; toggle with `EXTRAS`) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
 
@@ -37,7 +37,7 @@ bash ~/.dotfiles/install.sh
 
 Re-running is safe: installed tools are skipped and dotfiles re-linked. Individual
 download failures don't stop the run; they're listed at the end, so just re-run.
-Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="deno"` (or `""`).
+Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="bat"` (or `""`).
 On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 `.zshrc` and the `cc-use` `~/.claude` symlink there.
 
