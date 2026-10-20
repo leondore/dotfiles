@@ -6,8 +6,8 @@ typescript-language-server typescript-language-server
 vercel                     vercel
 @openai/codex              codex
 intelephense               intelephense
+agent-browser              agent-browser
 
-# Uncomment on VMs that need them (both used in trackstreet-ui):
+# Uncomment on VMs that need them (used in trackstreet-ui):
 # @fission-ai/openspec     openspec
-# agent-browser            agent-browser
 # yarn                     yarn

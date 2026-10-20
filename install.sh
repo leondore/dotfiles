@@ -190,6 +190,20 @@ if has claude; then skip claude; else try installer https://claude.ai/install.sh
 log "opencode"
 if has opencode; then skip opencode; else try installer https://opencode.ai/install bash; fi
 
+# --- Browsers for agents and e2e ---------------------------------------------------------
+# agent-browser's Chrome (Chrome for Testing) plus the system libraries headless Chromium
+# needs. Playwright's browser binaries are per-project (tied to its version), but its
+# install-deps covers the apt side once so e2e runs don't stop at a sudo prompt.
+if has agent-browser; then
+  log "agent-browser Chrome + system deps"
+  if compgen -G "$HOME/.agent-browser/browsers/*" >/dev/null; then skip "agent-browser Chrome"
+  else try agent-browser install --with-deps; fi
+fi
+if has pnpm && [ ! -f "$HOME/.cache/.playwright-deps-done" ]; then
+  log "Playwright system deps"
+  try bash -c 'pnpm dlx playwright install-deps chromium && mkdir -p ~/.cache && touch ~/.cache/.playwright-deps-done'
+fi
+
 # --- Extras ------------------------------------------------------------------------------
 if want deno; then
   log "deno"

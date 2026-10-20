@@ -10,7 +10,8 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Shell | zsh (login shell), zsh-autosuggestions, starship, fzf (keybindings), fd, ripgrep, tmux |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
-| AI tools | Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills; ccstatusline with my config), opencode |
+| AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills; ccstatusline with my config), opencode |
+| Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
 | Extras | deno, turso, bat (toggle with `EXTRAS`) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
@@ -49,7 +50,7 @@ comes from the exe.dev GitHub integration.
 install.sh              installs tools, then symlinks the two trees below
 bootstrap.sh            exe.dev setup script (clone + install.sh)
 home/                   mirrored into $HOME          (~/.zshrc, ~/.config/starship.toml, ...)
-claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md)
+claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md, skills/)
 packages/node-globals.txt   npm globals
 packages/go-tools.txt       go install targets
 ```
