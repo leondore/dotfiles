@@ -7,7 +7,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 
 | Area | Tools |
 | --- | --- |
-| Shell | zsh (login shell), zsh-autosuggestions, starship |
+| Shell | zsh (login shell), zsh-autosuggestions, starship, fzf (keybindings), fd, ripgrep, tmux |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt) |
 | AI tools | Claude Code (with my CLAUDE.md and settings; plugins: typescript-lsp, mattpocock-skills; ccstatusline with my config), opencode |

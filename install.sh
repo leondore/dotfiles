@@ -52,7 +52,7 @@ esac
 
 # --- System packages ---------------------------------------------------------
 log "System packages"
-APT_PKGS=(zsh git curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep)
+APT_PKGS=(zsh git curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep fd-find tmux)
 want bat && APT_PKGS+=(bat)
 missing=()
 for p in "${APT_PKGS[@]}"; do
@@ -65,8 +65,9 @@ if [ ${#missing[@]} -gt 0 ]; then
 else
   skip "apt packages"
 fi
-# Ubuntu ships bat as `batcat`
+# Ubuntu ships bat as `batcat` and fd as `fdfind`
 if want bat && has batcat && ! has bat; then ln -sf "$(command -v batcat)" "$HOME/.local/bin/bat"; fi
+if has fdfind && ! has fd; then ln -sf "$(command -v fdfind)" "$HOME/.local/bin/fd"; fi
 
 # --- zsh -----------------------------------------------------------------------
 log "zsh"
@@ -87,6 +88,18 @@ log "starship"
 if has starship; then skip starship; else
   try installer https://starship.rs/install.sh sh -y -b "$HOME/.local/bin"
 fi
+
+# --- fzf -------------------------------------------------------------------------
+# From GitHub releases: Ubuntu's package is too old for `fzf --zsh` (needs 0.48+).
+# Lands in ~/.local/bin, which shadows an apt-installed /usr/bin/fzf.
+log "fzf"
+install_fzf() {
+  local ver
+  ver="$(curl -fsSL https://api.github.com/repos/junegunn/fzf/releases/latest | jq -r .tag_name)" &&
+  curl -fsSL "https://github.com/junegunn/fzf/releases/download/${ver}/fzf-${ver#v}-linux_${GOARCH}.tar.gz" |
+    tar -xz -C "$HOME/.local/bin" fzf
+}
+if has fzf && fzf --zsh >/dev/null 2>&1; then skip "fzf ($(fzf --version | cut -d' ' -f1))"; else try install_fzf; fi
 
 # --- Node via fnm ------------------------------------------------------------------
 log "fnm + Node ($NODE_VERSION)"
