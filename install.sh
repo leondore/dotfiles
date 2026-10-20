@@ -149,16 +149,6 @@ if has claude; then skip claude; else try installer https://claude.ai/install.sh
 log "opencode"
 if has opencode; then skip opencode; else try installer https://opencode.ai/install bash; fi
 
-# Context7 MCP through the exe.dev `context7` integration, which injects the API key
-# at the network edge, so the key never lives on the VM (see README). exe.dev only.
-CONTEXT7_MCP_URL="${CONTEXT7_MCP_URL:-http://context7.int.exe.xyz/mcp}"
-if { [ -d /exe.dev ] || [ -n "${EXEUNTU:-}" ]; } && has claude; then
-  log "Context7 MCP"
-  if claude mcp get context7 >/dev/null 2>&1; then skip "context7 MCP server"; else
-    try claude mcp add --scope user --transport http context7 "$CONTEXT7_MCP_URL"
-  fi
-fi
-
 # --- Extras ------------------------------------------------------------------------------
 if want deno; then
   log "deno"

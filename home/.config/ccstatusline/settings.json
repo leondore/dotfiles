@@ -1,0 +1,108 @@
+{
+  "version": 4,
+  "lines": [
+    [
+      {
+        "id": "1",
+        "type": "model",
+        "color": "cyan",
+        "bold": true,
+        "rawValue": true
+      },
+      {
+        "id": "2",
+        "type": "custom-text",
+        "customText": "·",
+        "color": "brightBlack"
+      },
+      {
+        "id": "3",
+        "type": "thinking-effort",
+        "color": "magenta",
+        "rawValue": true
+      },
+      {
+        "id": "4",
+        "type": "custom-text",
+        "customText": "│",
+        "color": "brightBlack"
+      },
+      {
+        "id": "5",
+        "type": "context-length",
+        "color": "yellow",
+        "bold": true,
+        "rawValue": true
+      },
+      {
+        "id": "6",
+        "type": "custom-text",
+        "customText": "(",
+        "color": "brightBlack",
+        "merge": "no-padding"
+      },
+      {
+        "id": "7",
+        "type": "context-percentage",
+        "color": "brightBlack",
+        "rawValue": true,
+        "merge": "no-padding"
+      },
+      {
+        "id": "8",
+        "type": "custom-text",
+        "customText": ")",
+        "color": "brightBlack"
+      }
+    ],
+    [
+      {
+        "id": "10",
+        "type": "git-root-dir",
+        "color": "blue",
+        "bold": true,
+        "rawValue": true,
+        "metadata": {
+          "hide": "no-git"
+        }
+      },
+      {
+        "id": "12",
+        "type": "git-branch",
+        "color": "green",
+        "rawValue": true,
+        "metadata": {
+          "hide": "no-git"
+        }
+      },
+      {
+        "id": "13",
+        "type": "git-changes",
+        "color": "brightBlack",
+        "rawValue": true,
+        "metadata": {
+          "hide": "no-git"
+        }
+      }
+    ],
+    []
+  ],
+  "flexMode": "full-minus-40",
+  "compactThreshold": 60,
+  "colorLevel": 2,
+  "defaultSeparator": " ",
+  "inheritSeparatorColors": false,
+  "globalBold": false,
+  "powerline": {
+    "enabled": false,
+    "separators": [
+      " "
+    ],
+    "separatorInvertBackground": [
+      false
+    ],
+    "startCaps": [],
+    "endCaps": [],
+    "autoAlign": false
+  }
+}

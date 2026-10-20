@@ -1,10 +1,36 @@
 {
+  "permissions": {
+    "deny": [
+      "NotebookEdit",
+      "DesignSync",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "EnterPlanMode",
+      "ExitPlanMode",
+      "RemoteTrigger",
+      "ReportFindings",
+      "ScheduleWakeup"
+    ]
+  },
+  "disableClaudeAiConnectors": true,
+  "disableBundledSkills": true,
+  "disableWorkflows": true,
+  "disableArtifact": true,
+  "statusLine": {
+    "type": "command",
+    "command": "pnpm dlx ccstatusline@latest"
+  },
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "medium"
+    }
+  },
+  "tui": "fullscreen",
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
     "mattpocock-skills@claude-plugins-official": true
   },
-  "alwaysThinkingEnabled": true,
-  "tui": "fullscreen",
   "theme": "dark",
   "inputNeededNotifEnabled": true,
   "agentPushNotifEnabled": true

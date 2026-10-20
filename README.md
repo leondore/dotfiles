@@ -10,7 +10,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Shell | zsh (login shell), zsh-autosuggestions, starship |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt) |
-| AI tools | Claude Code (with my CLAUDE.md, rules and settings; plugins: typescript-lsp, mattpocock-skills; Context7 MCP on exe.dev), opencode |
+| AI tools | Claude Code (with my CLAUDE.md and settings; plugins: typescript-lsp, mattpocock-skills; ccstatusline with my config), opencode |
 | Extras | deno, turso, bat (toggle with `EXTRAS`) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
@@ -43,25 +43,13 @@ On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 **After the first boot**, log in once per VM: `claude`, `opencode`. GitHub access
 comes from the exe.dev GitHub integration.
 
-**Context7 (one-time, from your own machine):** the API key lives in an exe.dev
-integration that adds it to requests at the network edge, so it never touches a VM.
-`install.sh` points Claude Code at `http://context7.int.exe.xyz/mcp` on exe.dev VMs.
-
-```sh
-read -rs KEY && printf '%s' "$KEY" | ssh exe.dev integrations add http-proxy \
-  --name context7 --target https://mcp.context7.com --bearer=- --attach auto:all; unset KEY
-```
-
-`auto:all` attaches it to every VM, including future ones. To rotate the key, update
-the integration (`integrations edit context7`, or remove and re-add it); no VM changes needed.
-
 ## Layout
 
 ```
 install.sh              installs tools, then symlinks the two trees below
 bootstrap.sh            exe.dev setup script (clone + install.sh)
 home/                   mirrored into $HOME          (~/.zshrc, ~/.config/starship.toml, ...)
-claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md, rules/)
+claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md)
 packages/node-globals.txt   npm globals
 packages/go-tools.txt       go install targets
 ```
