@@ -29,7 +29,10 @@
   "tui": "fullscreen",
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
-    "mattpocock-skills@claude-plugins-official": true
+    "mattpocock-skills@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true
   },
   "theme": "dark",
   "inputNeededNotifEnabled": true,

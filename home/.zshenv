@@ -7,9 +7,11 @@ export BUN_INSTALL="$HOME/.bun"
 export DENO_INSTALL="$HOME/.deno"
 export CODEX_HOME="$HOME/.codex"
 export EDITOR=nvim
+export PHP_INI_SCAN_DIR="$HOME/.config/herd-lite/bin"   # php.new php.ini (CA bundle)
 
 path=(
   "$HOME/.local/bin"
+  "$HOME/.config/herd-lite/bin"
   "$HOME/.local/share/npm-global/bin"
   "$BUN_INSTALL/bin"
   "$DENO_INSTALL/bin"

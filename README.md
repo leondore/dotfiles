@@ -9,8 +9,8 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | --- | --- |
 | Shell | zsh (login shell), zsh-autosuggestions, starship, fzf (keybindings), fd, ripgrep, tmux |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, codex |
-| Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt) |
-| AI tools | Claude Code (with my CLAUDE.md and settings; plugins: typescript-lsp, mattpocock-skills; ccstatusline with my config), opencode |
+| Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
+| AI tools | Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills; ccstatusline with my config), opencode |
 | Extras | deno, turso, bat (toggle with `EXTRAS`) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
@@ -36,7 +36,7 @@ bash ~/.dotfiles/install.sh
 
 Re-running is safe: installed tools are skipped and dotfiles re-linked. Individual
 download failures don't stop the run; they're listed at the end, so just re-run.
-Options: `NODE_VERSION=24` (instead of latest LTS), `EXTRAS="deno"` (or `""`).
+Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="deno"` (or `""`).
 On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 `.zshrc` and the `cc-use` `~/.claude` symlink there.
 

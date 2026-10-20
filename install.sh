@@ -9,6 +9,7 @@ set -euo pipefail
 
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
+PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
 EXTRAS="${EXTRAS:-deno turso bat}"           # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
@@ -147,6 +148,33 @@ if has go; then
     if has "$bin"; then skip "$bin"; else echo "    go install $mod"; try go install "$mod"; fi
   done < "$DOTFILES/packages/go-tools.txt"
 fi
+
+# --- PHP (php.new) -------------------------------------------------------------------
+# Static PHP + Composer + Laravel installer from the same downloads php.new uses. Done
+# by hand because the php.new script calls `clear` (fatal without a TTY under set -e),
+# doesn't fail on HTTP errors, and edits rc files. PATH/PHP_INI_SCAN_DIR are in .zshenv.
+log "PHP, Composer, Laravel installer"
+HERD_LITE="$HOME/.config/herd-lite/bin"
+install_php() {
+  local base=https://download.herdphp.com arch=x64 v
+  [ "$GOARCH" = arm64 ] && arch=arm64
+  mkdir -p "$HERD_LITE" &&
+  for v in "$PHP_VERSION" 8.4; do
+    curl -fsSL "$base/herd-lite/linux/$arch/$v/php" -o "$HERD_LITE/php" && break
+  done && [ -s "$HERD_LITE/php" ] &&
+  curl -fsSL "$base/herd-lite/composer" -o "$HERD_LITE/composer" &&
+  curl -fsSL "$base/resources/laravel" -o "$HERD_LITE/laravel" &&
+  curl -fsSL https://curl.se/ca/cacert.pem -o "$HERD_LITE/cacert.pem" &&
+  chmod +x "$HERD_LITE/php" "$HERD_LITE/composer" "$HERD_LITE/laravel" &&
+  if [ ! -f "$HERD_LITE/php.ini" ]; then
+    printf 'curl.cainfo=%s\nopenssl.cafile=%s\npcre.jit=0\n' "$HERD_LITE/cacert.pem" "$HERD_LITE/cacert.pem" > "$HERD_LITE/php.ini"
+  fi &&
+  echo "    $("$HERD_LITE/php" -r 'echo "php ", PHP_VERSION;')" &&
+  # herd-lite's Composer build lags behind; bring it to the latest stable
+  "$HERD_LITE/php" "$HERD_LITE/composer" self-update --stable -q
+}
+export PATH="$HERD_LITE:$PATH" PHP_INI_SCAN_DIR="$HERD_LITE"
+if has php && has composer; then skip "php ($(php -r 'echo PHP_VERSION;'))"; else try install_php; fi
 
 # --- Rust ----------------------------------------------------------------------------
 log "Rust"

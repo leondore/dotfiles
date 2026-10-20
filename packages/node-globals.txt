@@ -5,6 +5,7 @@ typescript-language-server typescript-language-server
 @vue/language-server       vue-language-server
 vercel                     vercel
 @openai/codex              codex
+intelephense               intelephense
 
 # Uncomment on VMs that need them (both used in trackstreet-ui):
 # @fission-ai/openspec     openspec
