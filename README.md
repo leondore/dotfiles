@@ -73,6 +73,12 @@ Per-machine tweaks that shouldn't be shared go in untracked files:
   project scope, in the repo's `.claude/settings.local.json`:
   `{"enabledPlugins": {"mattpocock-skills@claude-plugins-official": false}}`.
   Disabling at user scope would edit the symlinked `settings.json` in this repo.
+- **herdr integrations** (agent state in the sidebar) are wired up by `install.sh`, not
+  by running `herdr integration install` yourself: their config entries are tracked here
+  (the hook in `claude/settings.json`, the plugin in opencode's `cli.json`), and herdr's
+  own Claude installer would add a duplicate, absolute-path hook to the linked file. If
+  `git status` ever shows herdr changes after a `herdr update`, discard them and re-run
+  `install.sh`.
 - **Fonts** are rendered by the terminal you connect from, so the coding font only
   needs to be installed on your own computer.
 - **No secrets in this repo** (it's public). Credentials, `~/.claude.json`,

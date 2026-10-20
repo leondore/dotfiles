@@ -243,6 +243,26 @@ mkdir -p "$HOME/.claude"
 link_tree "$DOTFILES/home" "$HOME"
 link_tree "$DOTFILES/claude" "$HOME/.claude"
 
+# herdr agent-state integrations. Their config entries are tracked in this repo
+# (Claude hook in claude/settings.json, opencode plugin in cli.json), so herdr must
+# not write to the linked files: for Claude it would add a second hook with an
+# absolute path, so only its hook script is taken, from a scratch HOME.
+herdr_claude() {
+  local scratch
+  scratch="$(mktemp -d)" && mkdir -p "$scratch/.claude" &&
+  HOME="$scratch" herdr integration install claude >/dev/null &&
+  mkdir -p "$HOME/.claude/hooks" &&
+  cp "$scratch/.claude/hooks/herdr-agent-state.sh" "$HOME/.claude/hooks/" &&
+  rm -rf "$scratch"
+}
+if has herdr; then
+  log "herdr integrations"
+  try herdr_claude
+  try herdr integration install opencode   # cli.json entry already present, left untouched
+  mkdir -p "${CODEX_HOME:-$HOME/.codex}" && try herdr integration install codex
+  herdr integration status 2>/dev/null | grep -E '^(claude|codex|opencode):' | sed 's/^/    /' || true
+fi
+
 if [ ${#FAILED[@]} -gt 0 ]; then
   log "Finished with ${#FAILED[@]} failure(s); re-run install.sh to retry:"
   printf '    - %s\n' "${FAILED[@]}"

@@ -42,5 +42,19 @@
     {
       "serverUrl": "https://mcp.cloudflare.com/mcp"
     }
-  ]
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "^(startup|resume|clear|compact|fork)$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=\"$HOME/.claude/hooks/herdr-agent-state.sh\"; [ -f \"$f\" ] && bash \"$f\" session || true",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
 }
