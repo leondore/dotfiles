@@ -10,7 +10,7 @@ set -euo pipefail
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
 PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
-EXTRAS="${EXTRAS:-deno turso bat}"           # optional tools, space-separated
+EXTRAS="${EXTRAS:-deno turso bat herdr}"     # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
@@ -209,6 +209,12 @@ if want deno; then
   log "deno"
   if has deno; then skip deno; else try installer https://deno.land/install.sh sh -y --no-modify-path; fi
   if has deno; then deno completions zsh > "$HOME/.zsh/completion/_deno" 2>/dev/null || true; fi
+fi
+if want herdr; then
+  # Agent-aware multiplexer (tmux stays installed as the fallback). The installer
+  # verifies the binary's SHA-256 and drops it in ~/.local/bin; `herdr update` updates it.
+  log "herdr"
+  if has herdr; then skip herdr; else try installer https://herdr.dev/install.sh sh; fi
 fi
 if want turso; then
   log "turso"

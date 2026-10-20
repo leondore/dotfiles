@@ -12,7 +12,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills; ccstatusline with my config), opencode |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
-| Extras | deno, turso, bat (toggle with `EXTRAS`) |
+| Extras | deno, turso, bat, [herdr](https://herdr.dev) (agent-aware multiplexer; toggle with `EXTRAS`) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
 
