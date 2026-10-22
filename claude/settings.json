@@ -15,29 +15,6 @@
   },
   "disableClaudeAiConnectors": true,
   "disableBundledSkills": true,
-  "disableWorkflows": true,
-  "disableArtifact": true,
-  "statusLine": {
-    "type": "command",
-    "command": "pnpm dlx ccstatusline@latest"
-  },
-  "modelSettings": {
-    "claude-opus-5-5": {
-      "effortLevel": "medium"
-    }
-  },
-  "tui": "fullscreen",
-  "enabledPlugins": {
-    "typescript-lsp@claude-plugins-official": true,
-    "mattpocock-skills@claude-plugins-official": true,
-    "gopls-lsp@claude-plugins-official": true,
-    "rust-analyzer-lsp@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
-    "cloudflare@claude-plugins-official": true
-  },
-  "theme": "dark",
-  "inputNeededNotifEnabled": true,
-  "agentPushNotifEnabled": true,
   "deniedMcpServers": [
     {
       "serverUrl": "https://mcp.cloudflare.com/mcp"
@@ -56,5 +33,28 @@
         ]
       }
     ]
-  }
+  },
+  "disableWorkflows": true,
+  "disableArtifact": true,
+  "statusLine": {
+    "type": "command",
+    "command": "pnpm dlx ccstatusline@latest"
+  },
+  "enabledPlugins": {
+    "typescript-lsp@claude-plugins-official": true,
+    "mattpocock-skills@claude-plugins-official": true,
+    "gopls-lsp@claude-plugins-official": true,
+    "rust-analyzer-lsp@claude-plugins-official": true,
+    "php-lsp@claude-plugins-official": true,
+    "cloudflare@claude-plugins-official": true
+  },
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    }
+  },
+  "tui": "fullscreen",
+  "theme": "dark",
+  "inputNeededNotifEnabled": true,
+  "agentPushNotifEnabled": true
 }
