@@ -48,8 +48,16 @@ Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="
 On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 `.zshrc` and the `cc-use` `~/.claude` symlink there.
 
-**After the first boot**, log in once per VM: `claude`, `opencode`. GitHub access
-comes from the exe.dev GitHub integration.
+**After the first boot**, log in once per VM: `claude`, `opencode`.
+
+**GitHub** goes through exe.dev's GitHub integration: no token or SSH key on the VM.
+Each repo needs an integration attached to the VM (`dotfiles` is on `auto:all`), and is
+cloned from the proxy, `https://github.int.exe.xyz/<owner>/<repo>.git`. `bootstrap.sh`
+moves `~/.dotfiles` to that remote and sets `GH_HOST=github.int.exe.xyz` in
+`~/.zshenv.local`, so `gh` works too. A repo whose remote is still `github.com` makes `gh`
+refuse to run until it's switched (`git remote set-url origin <proxy url>`). The proxy
+covers repo commands (`gh pr`, `gh issue`, `gh repo`), not arbitrary `gh api` calls; for
+those, `gh auth login` with a fine-grained token.
 
 ## Layout
 

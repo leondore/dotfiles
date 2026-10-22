@@ -21,6 +21,16 @@ run() {
     else
       git clone -q --depth 1 "$1" "$HOME/.dotfiles"
     fi
+    # exe.dev's GitHub integration proxies git and gh, so no token or SSH key lives on the
+    # VM. Move the dotfiles remote to the proxy once it can reach the repo (needs the
+    # dotfiles integration attached), and point gh at it for every shell via .zshenv.local.
+    local proxied="https://github.int.exe.xyz/${1#https://github.com/}"
+    if git ls-remote -q "$proxied" HEAD >/dev/null 2>&1; then
+      git -C "$HOME/.dotfiles" remote set-url origin "$proxied"
+      git -C "$HOME/.dotfiles" config --unset remote.origin.pushurl || true
+    fi
+    grep -qs '^export GH_HOST=' "$HOME/.zshenv.local" ||
+      echo 'export GH_HOST=github.int.exe.xyz  # exe.dev GitHub integration (bootstrap.sh)' >> "$HOME/.zshenv.local"
     CLAUDE_PROFILE="$2" bash "$HOME/.dotfiles/install.sh"
     echo "[$(date -Is)] dotfiles bootstrap finished"
   } 2>&1 | tee -a "$HOME/dotfiles-bootstrap.log"
