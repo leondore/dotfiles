@@ -7,6 +7,8 @@ set -euo pipefail
 
 REPO="${DOTFILES_REPO:-https://github.com/leondore/dotfiles.git}"
 VM_USER="${DOTFILES_USER:-exedev}"
+# "work" for work VMs, see README; install.sh remembers it for later re-runs.
+CLAUDE_PROFILE="${CLAUDE_PROFILE:-personal}"
 
 run() {
   set -euo pipefail
@@ -19,13 +21,13 @@ run() {
     else
       git clone -q --depth 1 "$1" "$HOME/.dotfiles"
     fi
-    bash "$HOME/.dotfiles/install.sh"
+    CLAUDE_PROFILE="$2" bash "$HOME/.dotfiles/install.sh"
     echo "[$(date -Is)] dotfiles bootstrap finished"
   } 2>&1 | tee -a "$HOME/dotfiles-bootstrap.log"
 }
 
 if [ "$(id -u)" -eq 0 ]; then
-  sudo -u "$VM_USER" -H bash -c "$(declare -f run); run '$REPO'"
+  sudo -u "$VM_USER" -H bash -c "$(declare -f run); run '$REPO' '$CLAUDE_PROFILE'"
 else
-  run "$REPO"
+  run "$REPO" "$CLAUDE_PROFILE"
 fi

@@ -1,0 +1,20 @@
+#!/bin/sh
+# This repo is public. Refuse commits that add work-specific Claude config:
+# auto mode's environment block (internal hosts, secret names, branches) plus any
+# patterns listed, one regex per line, in the untracked ~/.config/dotfiles/blocked-patterns.
+# Bypass a false positive with: git commit --no-verify
+patterns='"autoMode"'
+local_file="$HOME/.config/dotfiles/blocked-patterns"
+[ -f "$local_file" ] && patterns="$patterns
+$(grep -v '^[[:space:]]*\(#\|$\)' "$local_file")"
+
+hits=$(git diff --cached -U0 --no-color -- . ':!githooks' |
+  grep '^+' | grep -v '^+++' | grep -Eif /dev/fd/3 3<<EOP
+$patterns
+EOP
+)
+if [ -n "$hits" ]; then
+  echo "pre-commit: staged changes match blocked patterns (work config in a public repo?):" >&2
+  printf '%s\n' "$hits" | cut -c1-160 | sed 's/^/    /' >&2
+  exit 1
+fi

@@ -28,6 +28,12 @@ New VMs then clone this repo and run `install.sh` on first boot. Follow along
 on the VM with `tail -f ~/dotfiles-bootstrap.log`. One VM only:
 `ssh exe.dev new --setup-script /dev/stdin < bootstrap.sh`.
 
+**Work VMs** use the `work` Claude profile (see below):
+
+```sh
+sed '2i CLAUDE_PROFILE=work' bootstrap.sh | ssh exe.dev new --setup-script /dev/stdin
+```
+
 **Any machine, by hand:**
 
 ```sh
@@ -37,7 +43,8 @@ bash ~/.dotfiles/install.sh
 
 Re-running is safe: installed tools are skipped and dotfiles re-linked. Individual
 download failures don't stop the run; they're listed at the end, so just re-run.
-Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="bat"` (or `""`).
+Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="bat"` (or `""`),
+`CLAUDE_PROFILE=work`.
 On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 `.zshrc` and the `cc-use` `~/.claude` symlink there.
 
@@ -51,6 +58,8 @@ install.sh              installs tools, then symlinks the two trees below
 bootstrap.sh            exe.dev setup script (clone + install.sh)
 home/                   mirrored into $HOME          (~/.zshrc, ~/.config/starship.toml, ...)
 claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md, skills/)
+claude-work/            seed for ~/.claude/settings.json on work VMs (copied, not linked)
+githooks/               pre-commit guard for this repo (set as core.hooksPath by install.sh)
 packages/node-globals.txt   npm globals
 packages/go-tools.txt       go install targets
 ```
@@ -61,6 +70,27 @@ Anything a link would overwrite goes to `~/.dotfiles-backup/<timestamp>/`.
 
 Per-machine tweaks that shouldn't be shared go in untracked files:
 `~/.zshrc.local`, `~/.zshenv.local`, `~/.gitconfig.local` (e.g. a work email).
+
+A yellow `⚙ N` in the prompt means `~/.dotfiles` has N uncommitted changes, often from a
+tool writing to a linked file (e.g. `/model` or `/plugin` editing `settings.json`).
+
+### Claude profiles: personal vs work
+
+`install.sh` takes `CLAUDE_PROFILE=personal` (default) or `work` and remembers it in
+`~/.config/dotfiles/profile`, so plain re-runs keep the VM's profile.
+
+- **personal**: everything in `claude/` is linked, as described above.
+- **work**: `claude/` is linked **except** `settings.json` and `CLAUDE.md`.
+  `~/.claude/settings.json` is a real file, seeded once from `claude-work/settings.json`,
+  then edited on the VM and never committed. Work settings collect org details (auto mode
+  writes internal hosts, secret names and branches into them), and this repo is public.
+  There's no user-level `CLAUDE.md`, since work repos carry their own. Connectors
+  (Atlassian, Slack, ...) come with the work account login, and internal MCPs from each
+  repo's `.mcp.json`.
+
+The pre-commit hook rejects staged lines adding an `autoMode` key, plus any regexes (one
+per line) in the untracked `~/.config/dotfiles/blocked-patterns`. Put employer-specific
+names there instead of in this repo. Bypass a false positive with `git commit --no-verify`.
 
 ## Notes
 

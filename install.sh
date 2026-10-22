@@ -14,6 +14,16 @@ EXTRAS="${EXTRAS:-turso bat herdr}"          # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
+# Claude profile: "personal" links claude/ as-is; "work" keeps settings.json and CLAUDE.md
+# out of the repo (see the linking step). Remembered per machine so a plain re-run
+# never swaps a work VM back to the personal settings.
+PROFILE_FILE="$HOME/.config/dotfiles/profile"
+CLAUDE_PROFILE="${CLAUDE_PROFILE:-$(cat "$PROFILE_FILE" 2>/dev/null || echo personal)}"
+case "$CLAUDE_PROFILE" in
+  personal|work) ;;
+  *) echo "CLAUDE_PROFILE must be 'personal' or 'work', got '$CLAUDE_PROFILE'" >&2; exit 1 ;;
+esac
+
 log()  { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
 skip() { printf '    \033[2m%s already installed, skipping\033[0m\n' "$1"; }
 has()  { command -v "$1" >/dev/null 2>&1; }
@@ -218,30 +228,55 @@ fi
 
 # --- Dotfiles ------------------------------------------------------------------------------
 # Symlink every file under home/ into $HOME and every file under claude/ into ~/.claude.
-# Existing real files are moved to ~/.dotfiles-backup/<timestamp>/ first.
+# Existing real files are moved to ~/.dotfiles-backup/<timestamp>/ first. Paths listed
+# after the two roots are skipped, and a stale link from an earlier run is removed.
+backup() {
+  mkdir -p "$BACKUP_DIR/$(dirname "${1#"$HOME"/}")"
+  mv "$1" "$BACKUP_DIR/${1#"$HOME"/}"
+  echo "    backed up ~/${1#"$HOME"/}"
+}
 link_tree() {
   local src_root="$1" dst_root="$2" src rel dst
+  local skip=" ${*:3} "
   while IFS= read -r -d '' src; do
     rel="${src#"$src_root"/}"
     dst="$dst_root/$rel"
+    if [[ "$skip" == *" $rel "* ]]; then
+      if [ "$(readlink "$dst" 2>/dev/null)" = "$src" ]; then backup "$dst"; fi
+      continue
+    fi
     mkdir -p "$(dirname "$dst")"
     if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then continue; fi
-    if [ -e "$dst" ] || [ -L "$dst" ]; then
-      mkdir -p "$BACKUP_DIR/$(dirname "${dst#"$HOME"/}")"
-      mv "$dst" "$BACKUP_DIR/${dst#"$HOME"/}"
-      echo "    backed up ~/${dst#"$HOME"/}"
-    fi
+    if [ -e "$dst" ] || [ -L "$dst" ]; then backup "$dst"; fi
     ln -s "$src" "$dst"
     echo "    linked ~/${dst#"$HOME"/}"
   done < <(find "$src_root" -type f -print0)
 }
 
-log "Linking dotfiles"
+log "Linking dotfiles (Claude profile: $CLAUDE_PROFILE)"
+mkdir -p "$(dirname "$PROFILE_FILE")" && echo "$CLAUDE_PROFILE" > "$PROFILE_FILE"
 # ~/.claude must be a real directory (Claude Code keeps state there), not a symlink.
 if [ -L "$HOME/.claude" ]; then mkdir -p "$BACKUP_DIR"; mv "$HOME/.claude" "$BACKUP_DIR/.claude-link"; fi
 mkdir -p "$HOME/.claude"
 link_tree "$DOTFILES/home" "$HOME"
-link_tree "$DOTFILES/claude" "$HOME/.claude"
+if [ "$CLAUDE_PROFILE" = work ]; then
+  # Work settings are edited on the VM and never tracked: auto mode and other tools write
+  # org details (internal hosts, secret names) into them, and this repo is public. They're
+  # seeded once from claude-work/settings.json. Work CLAUDE.md files are per repo.
+  link_tree "$DOTFILES/claude" "$HOME/.claude" settings.json CLAUDE.md
+  if [ -f "$HOME/.claude/settings.json" ] && [ ! -L "$HOME/.claude/settings.json" ]; then
+    echo "    kept local ~/.claude/settings.json"
+  else
+    if [ -L "$HOME/.claude/settings.json" ]; then backup "$HOME/.claude/settings.json"; fi
+    cp "$DOTFILES/claude-work/settings.json" "$HOME/.claude/settings.json"
+    echo "    seeded ~/.claude/settings.json from claude-work/"
+  fi
+else
+  link_tree "$DOTFILES/claude" "$HOME/.claude"
+fi
+
+# Pre-commit guard against committing work config to this public repo.
+git -C "$DOTFILES" config core.hooksPath githooks
 
 # herdr agent-state integrations. Their config entries are tracked in this repo
 # (Claude hook in claude/settings.json, opencode plugin in cli.json), so herdr must
