@@ -109,6 +109,10 @@ names there instead of in this repo. Bypass a false positive with `git commit --
   own Claude installer would add a duplicate, absolute-path hook to the linked file. If
   `git status` ever shows herdr changes after a `herdr update`, discard them and re-run
   `install.sh`.
+- **exe.dev's agent notes**: the base image ships a `~/.claude/CLAUDE.md` about the VM
+  (HTTPS proxy, documented features only). `install.sh` moves it to
+  `~/.claude/rules/exe-dev.md`, which Claude Code loads alongside your `CLAUDE.md`, so it
+  survives the link on both profiles and stays local to the VM.
 - **Fonts** are rendered by the terminal you connect from, so the coding font only
   needs to be installed on your own computer.
 - **No secrets in this repo** (it's public). Credentials, `~/.claude.json`,

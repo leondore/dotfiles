@@ -258,6 +258,14 @@ mkdir -p "$(dirname "$PROFILE_FILE")" && echo "$CLAUDE_PROFILE" > "$PROFILE_FILE
 # ~/.claude must be a real directory (Claude Code keeps state there), not a symlink.
 if [ -L "$HOME/.claude" ]; then mkdir -p "$BACKUP_DIR"; mv "$HOME/.claude" "$BACKUP_DIR/.claude-link"; fi
 mkdir -p "$HOME/.claude"
+# exe.dev's image ships a ~/.claude/CLAUDE.md telling agents about the VM (HTTPS proxy,
+# documented features only). Keep it as a user rule instead of losing it to the link.
+if [ -f "$HOME/.claude/CLAUDE.md" ] && [ ! -L "$HOME/.claude/CLAUDE.md" ] &&
+   grep -q 'exe\.dev VM' "$HOME/.claude/CLAUDE.md"; then
+  mkdir -p "$HOME/.claude/rules"
+  mv "$HOME/.claude/CLAUDE.md" "$HOME/.claude/rules/exe-dev.md"
+  echo "    moved exe.dev's ~/.claude/CLAUDE.md to ~/.claude/rules/exe-dev.md"
+fi
 link_tree "$DOTFILES/home" "$HOME"
 if [ "$CLAUDE_PROFILE" = work ]; then
   # Work settings are edited on the VM and never tracked: auto mode and other tools write
