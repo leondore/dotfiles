@@ -10,7 +10,7 @@ set -euo pipefail
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
 PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
-EXTRAS="${EXTRAS:-turso bat herdr}"          # optional tools, space-separated
+EXTRAS="${EXTRAS:-turso bat lsd herdr}"      # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
@@ -65,6 +65,7 @@ esac
 log "System packages"
 APT_PKGS=(zsh git curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep fd-find tmux)
 want bat && APT_PKGS+=(bat)
+want lsd && APT_PKGS+=(lsd)
 missing=()
 for p in "${APT_PKGS[@]}"; do
   [ "$(dpkg-query -W -f='${Status}' "$p" 2>/dev/null)" = "install ok installed" ] || missing+=("$p")
