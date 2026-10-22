@@ -49,6 +49,9 @@ fi
 # bun completions
 [[ -s "$BUN_INSTALL/_bun" ]] && source "$BUN_INSTALL/_bun"
 
+# lsd in place of ls (plain ls stays available as `command ls`)
+(( $+commands[lsd] )) && alias ls=lsd
+
 # Machine-specific overrides (not tracked)
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
 
