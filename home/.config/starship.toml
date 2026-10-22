@@ -72,3 +72,14 @@ $time\
 $status\
 $shell\
 [$character](bold green)"""
+
+# Flags uncommitted changes in the dotfiles repo (tools like Claude Code write to
+# the symlinked settings.json), so they don't sit unnoticed on a VM.
+[custom.dotfiles]
+description = 'Uncommitted changes in ~/.dotfiles'
+when = 'git -C "${DOTFILES:-$HOME/.dotfiles}" status --porcelain 2>/dev/null | grep -q .'
+command = 'git -C "${DOTFILES:-$HOME/.dotfiles}" status --porcelain | wc -l'
+shell = ['sh']
+symbol = '⚙ '
+style = 'bold yellow'
+format = '[$symbol$output]($style) '
