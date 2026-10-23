@@ -94,6 +94,14 @@ if [ -d "$HOME/.zsh/zsh-autosuggestions/.git" ]; then
 else
   try git clone -q --depth 1 https://github.com/zsh-users/zsh-autosuggestions "$HOME/.zsh/zsh-autosuggestions"
 fi
+# Own copy of docker's completion: ~/.zsh/completion comes first in fpath, so compinit
+# never reads Docker Desktop's vendor-completions/_docker on WSL, a symlink into a mount
+# that only exists while Docker Desktop runs (compinit errors on it otherwise).
+if has docker && docker completion zsh > "$HOME/.zsh/completion/_docker.tmp" 2>/dev/null; then
+  mv "$HOME/.zsh/completion/_docker.tmp" "$HOME/.zsh/completion/_docker"
+else
+  rm -f "$HOME/.zsh/completion/_docker.tmp"
+fi
 
 # --- starship --------------------------------------------------------------------
 log "starship"
