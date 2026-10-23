@@ -43,6 +43,13 @@ if (( $+commands[fzf] )); then
   source <(fzf --zsh 2>/dev/null)
 fi
 
+# Up/Down: step through history entries that start with what's already typed
+autoload -U up-line-or-beginning-search down-line-or-beginning-search
+zle -N up-line-or-beginning-search
+zle -N down-line-or-beginning-search
+bindkey '^[[A' up-line-or-beginning-search '^[OA' up-line-or-beginning-search
+bindkey '^[[B' down-line-or-beginning-search '^[OB' down-line-or-beginning-search
+
 # Node: fnm, switching automatically on cd when a project has .nvmrc / .node-version
 (( $+commands[fnm] )) && eval "$(fnm env --use-on-cd --version-file-strategy=recursive --shell zsh)"
 

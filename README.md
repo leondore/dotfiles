@@ -7,7 +7,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 
 | Area | Tools |
 | --- | --- |
-| Shell | zsh (login shell), zsh-autosuggestions, starship, fzf (keybindings), fd, ripgrep, tmux |
+| Shell | zsh (login shell), zsh-autosuggestions, prefix history search on Up/Down, starship, fzf (keybindings), fd, ripgrep, tmux |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
