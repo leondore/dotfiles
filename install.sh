@@ -72,7 +72,7 @@ esac
 
 # --- System packages ---------------------------------------------------------
 log "System packages"
-APT_PKGS=(zsh git curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep fd-find tmux)
+APT_PKGS=(zsh git git-delta less curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep fd-find tmux)
 want bat && APT_PKGS+=(bat)
 want lsd && APT_PKGS+=(lsd)
 missing=()

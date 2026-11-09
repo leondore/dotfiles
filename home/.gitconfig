@@ -5,10 +5,16 @@
 	name = Leon Dore
 [core]
 	editor = nvim
+	pager = delta
 [color]
 	ui = auto
 [alias]
 	co = checkout
+[delta]
+	navigate = true
+	syntax-theme = Dracula
+	dark = true
+	line-numbers = true
 # Machine-specific overrides (not tracked), e.g. a work email on work VMs
 [include]
 	path = ~/.gitconfig.local
