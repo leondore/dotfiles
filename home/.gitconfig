@@ -6,6 +6,10 @@
 [core]
 	editor = nvim
 	pager = delta
+[interactive]
+	diffFilter = delta --color-only
+[merge]
+	conflictStyle = zdiff3
 [color]
 	ui = auto
 [alias]
