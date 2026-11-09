@@ -26,5 +26,15 @@ if [[ ! -o interactive ]] && (( $+commands[fnm] )); then
   eval "$(fnm env --shell zsh)"
 fi
 
+# systemd user session vars. Normally set by pam_systemd on SSH login, but
+# processes daemonized outside a login session (e.g. herdr server) lose them,
+# which breaks `systemctl --user` for every shell spawned underneath.
+if [[ -z "$XDG_RUNTIME_DIR" && -d "/run/user/$UID" ]]; then
+  export XDG_RUNTIME_DIR="/run/user/$UID"
+fi
+if [[ -z "$DBUS_SESSION_BUS_ADDRESS" && -S "$XDG_RUNTIME_DIR/bus" ]]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
+fi
+
 # Machine-specific overrides (not tracked)
 [[ -f "$HOME/.zshenv.local" ]] && source "$HOME/.zshenv.local"
