@@ -9,6 +9,8 @@ REPO="${DOTFILES_REPO:-https://github.com/leondore/dotfiles.git}"
 VM_USER="${DOTFILES_USER:-exedev}"
 # "work" for work VMs, see README; install.sh remembers it for later re-runs.
 CLAUDE_PROFILE="${CLAUDE_PROFILE:-personal}"
+# "auto" joins the tailnet when the tailscale-wif integration is attached; "1"/"0" force it.
+TAILSCALE="${TAILSCALE:-auto}"
 
 run() {
   set -euo pipefail
@@ -31,13 +33,13 @@ run() {
     fi
     grep -qs '^export GH_HOST=' "$HOME/.zshenv.local" ||
       echo 'export GH_HOST=github.int.exe.xyz  # exe.dev GitHub integration (bootstrap.sh)' >> "$HOME/.zshenv.local"
-    CLAUDE_PROFILE="$2" bash "$HOME/.dotfiles/install.sh"
+    CLAUDE_PROFILE="$2" TAILSCALE="$3" bash "$HOME/.dotfiles/install.sh"
     echo "[$(date -Is)] dotfiles bootstrap finished"
   } 2>&1 | tee -a "$HOME/dotfiles-bootstrap.log"
 }
 
 if [ "$(id -u)" -eq 0 ]; then
-  sudo -u "$VM_USER" -H bash -c "$(declare -f run); run '$REPO' '$CLAUDE_PROFILE'"
+  sudo -u "$VM_USER" -H bash -c "$(declare -f run); run '$REPO' '$CLAUDE_PROFILE' '$TAILSCALE'"
 else
-  run "$REPO" "$CLAUDE_PROFILE"
+  run "$REPO" "$CLAUDE_PROFILE" "$TAILSCALE"
 fi

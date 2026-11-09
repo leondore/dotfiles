@@ -12,7 +12,8 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
-| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer; toggle with `EXTRAS`) |
+| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), [T3 Code](https://t3.codes) (as a background service; see below); toggle with `EXTRAS` |
+| Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM (see below) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
 
@@ -44,11 +45,32 @@ bash ~/.dotfiles/install.sh
 Re-running is safe: installed tools are skipped and dotfiles re-linked. Individual
 download failures don't stop the run; they're listed at the end, so just re-run.
 Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="bat"` (or `""`),
-`CLAUDE_PROFILE=work`.
+`CLAUDE_PROFILE=work`, `TAILSCALE=1` or `0` (default `auto`).
 On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 `.zshrc` and the `cc-use` `~/.claude` symlink there.
 
-**After the first boot**, log in once per VM: `claude`, `opencode`.
+**After the first boot**, log in once per VM: `claude`, `opencode`. Pair T3 Code with
+each device: `t3 pair --tailscale` (one-time link, expires in 5 minutes).
+
+**Tailscale** goes through exe.dev's `tailscale-wif` integration (workload identity
+federation): the VM trades a short-lived exe.dev token for a tailnet join, so no auth key
+lives on it. The integration is attached to the `personal` tag, and `install.sh` joins
+whenever it's attached (`TAILSCALE=auto`), as `tag:exe`, with `ephemeral=false` so a VM
+keeps its tailnet name; delete removed VMs in the Tailscale console. For a VM without the
+tag, attach it and re-run `install.sh`:
+`ssh exe.dev integrations attach tailscale-wif vm:<name>`. `TAILSCALE=1` turns a missing
+integration into a reported failure instead of a skip; `TAILSCALE=0` never joins. Setup
+on the account side, once: `tag:exe` in the policy's `tagOwners`, MagicDNS and HTTPS
+certificates on, and a trust credential (OpenID Connect, Auth Keys write, `tag:exe`)
+matching the integration ([exe.dev docs](https://exe.dev/docs/integrations-tailscale-wif.md)).
+
+**T3 Code** runs as a systemd user service on `0.0.0.0:3773`. In a browser it's at
+`https://<vm>.exe.xyz:3773/`, behind exe.dev login. The desktop and phone apps can't log
+in to exe.dev (the proxy redirects them), so they pair over the tailnet instead, via
+`t3 pair --tailscale`, which also maps `https://<vm>.<tailnet>.ts.net/` with Tailscale
+Serve. Don't add a VM to the desktop app as an **SSH** environment while the service is
+down: it starts its own server, which then holds `~/.t3/userdata` and keeps the service
+from starting.
 
 **GitHub** goes through exe.dev's GitHub integration: no token or SSH key on the VM.
 Each repo needs an integration attached to the VM (`dotfiles` is on `auto:all`), and is
@@ -121,6 +143,9 @@ names there instead of in this repo. Bypass a false positive with `git commit --
   (HTTPS proxy, documented features only). `install.sh` moves it to
   `~/.claude/rules/exe-dev.md`, which Claude Code loads alongside your `CLAUDE.md`, so it
   survives the link on both profiles and stays local to the VM.
+- **`systemctl --user` env in `.zshenv`**: processes daemonized outside a login session
+  (the herdr server) lose `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS`, so every shell
+  under them fails with "Failed to connect to bus". `.zshenv` fills them in when missing.
 - **Fonts** are rendered by the terminal you connect from, so the coding font only
   needs to be installed on your own computer.
 - **No secrets in this repo** (it's public). Credentials, `~/.claude.json`,

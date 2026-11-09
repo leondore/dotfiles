@@ -5,12 +5,13 @@
 #   bash install.sh                     # everything
 #   NODE_VERSION=24 bash install.sh     # pin a Node major instead of latest LTS
 #   EXTRAS="" bash install.sh           # skip the optional extras
+#   TAILSCALE=1 bash install.sh         # require joining the tailnet (0 = never)
 set -euo pipefail
 
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
 PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
-EXTRAS="${EXTRAS:-turso bat lsd herdr}"      # optional tools, space-separated
+EXTRAS="${EXTRAS:-turso bat lsd herdr t3}"   # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
@@ -22,6 +23,14 @@ CLAUDE_PROFILE="${CLAUDE_PROFILE:-$(cat "$PROFILE_FILE" 2>/dev/null || echo pers
 case "$CLAUDE_PROFILE" in
   personal|work) ;;
   *) echo "CLAUDE_PROFILE must be 'personal' or 'work', got '$CLAUDE_PROFILE'" >&2; exit 1 ;;
+esac
+
+# Tailscale: "auto" joins the tailnet when exe.dev's tailscale-wif integration is attached
+# to this VM (it is for the `personal` tag), "1" requires it, "0" never joins.
+TAILSCALE="${TAILSCALE:-auto}"
+case "$TAILSCALE" in
+  auto|0|1) ;;
+  *) echo "TAILSCALE must be 'auto', '1' or '0', got '$TAILSCALE'" >&2; exit 1 ;;
 esac
 
 log()  { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -235,6 +244,76 @@ if want turso; then
   if has turso; then skip turso; else try installer https://get.tur.so/install.sh bash; fi
 fi
 
+# T3 Code runs as a systemd user service on 0.0.0.0:3773: reachable in a browser through
+# exe.dev's proxy (behind exe.dev login) and from the tailnet. The desktop and phone apps
+# can't log in to exe.dev, so they pair over Tailscale: `t3 pair --tailscale` per device.
+setup_t3_service() {
+  # bootstrap.sh runs this under `sudo -u` from bash, with no login session: without
+  # these, systemctl --user can't reach the user manager (same fix as in .zshenv).
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+  export DBUS_SESSION_BUS_ADDRESS="${DBUS_SESSION_BUS_ADDRESS:-unix:path=$XDG_RUNTIME_DIR/bus}"
+  # Lingering keeps the service running with nobody logged in (already on for exe.dev VMs).
+  if [ "$(loginctl show-user "$(id -un)" -p Linger --value 2>/dev/null)" != yes ]; then
+    sudo loginctl enable-linger "$(id -un)" || return 1
+    for _ in 1 2 3 4 5 6 7 8 9 10; do [ -S "$XDG_RUNTIME_DIR/bus" ] && break; sleep 1; done
+  fi
+  if ! systemctl --user show-environment >/dev/null 2>&1; then
+    echo "    no systemd user manager here (WSL without systemd?); run 't3 serve' instead" >&2
+    return 1
+  fi
+  if [ ! -f "$HOME/.t3/service.env" ]; then
+    mkdir -p "$HOME/.t3" && printf 'T3CODE_HOST=0.0.0.0\nT3CODE_PORT=3773\n' > "$HOME/.t3/service.env"
+  fi
+  if t3 status --json 2>/dev/null | jq -e '.service.installed' >/dev/null; then
+    skip "T3 service"
+  else
+    t3 service install
+  fi
+}
+if want t3; then
+  log "T3 Code"
+  if has t3; then skip t3; else try installer https://t3.codes/install.sh sh; fi
+  if has t3; then try setup_t3_service; fi
+fi
+
+# --- Tailscale ---------------------------------------------------------------------------
+# Joins through exe.dev's tailscale-wif integration (workload identity federation): the VM
+# gets a 5-minute token from exe.dev instead of holding a Tailscale auth key. The client
+# ID and tags come from the integration, so nothing tailnet-specific lives in this repo.
+TS_WIF_URL="https://tailscale-wif.int.exe.xyz"
+ts_joined() { has tailscale && tailscale status --json 2>/dev/null | jq -e '.BackendState == "Running"' >/dev/null; }
+ts_join() {
+  local meta client_id tags token
+  meta="$(curl -fsS --max-time 10 "$TS_WIF_URL/metadata")" || return 1
+  client_id="$(jq -er .client_id <<<"$meta")" || return 1
+  tags="$(jq -r '.tags // "tag:exe"' <<<"$meta")"
+  has tailscale || installer https://tailscale.com/install.sh sh || return 1
+  sudo systemctl enable --now tailscaled || return 1
+  token="$(curl -fsS --max-time 10 "$TS_WIF_URL/token" | jq -er .token)" || return 1
+  # ephemeral=false keeps the VM's tailnet name (and so its T3 pairing route) if it's
+  # offline for a while; remove deleted VMs in the Tailscale console. --operator lets
+  # `t3 pair --tailscale` manage Tailscale Serve without sudo.
+  sudo tailscale up \
+    --client-id="${client_id}?ephemeral=false&preauthorized=true" \
+    --id-token="$token" \
+    --advertise-tags="$tags" \
+    --hostname="$(hostname)" \
+    --operator="$(id -un)"
+}
+if [ "$TAILSCALE" != 0 ]; then
+  log "Tailscale"
+  if ts_joined; then
+    printf '    \033[2malready on the tailnet, skipping\033[0m\n'
+  elif curl -fsS -o /dev/null --max-time 10 "$TS_WIF_URL/metadata" 2>/dev/null; then
+    try ts_join
+  elif [ "$TAILSCALE" = 1 ]; then
+    FAILED+=("tailscale: attach the integration, then re-run: ssh exe.dev integrations attach tailscale-wif vm:$(hostname)")
+    printf '    \033[1;33m! failed:\033[0m tailscale-wif integration not attached to this VM\n'
+  else
+    printf '    \033[2mtailscale-wif integration not attached, skipping (TAILSCALE=1 to require it)\033[0m\n'
+  fi
+fi
+
 # --- Dotfiles ------------------------------------------------------------------------------
 # Symlink every file under home/ into $HOME and every file under claude/ into ~/.claude.
 # Existing real files are moved to ~/.dotfiles-backup/<timestamp>/ first. Paths listed
@@ -325,4 +404,5 @@ log "Done"
 cat <<EOF
     Open a new shell (or run: exec zsh) to pick everything up.
     First-run logins still needed on each VM: claude, opencode (gh is handled by the exe.dev GitHub integration).
+    T3 Code: pair each device with \`t3 pair --tailscale\` (one-time link, expires in 5 minutes).
 EOF
