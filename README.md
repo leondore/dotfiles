@@ -13,8 +13,8 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
-| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), [T3 Code](https://t3.codes) (as a background service; see below); toggle with `EXTRAS` |
-| Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM (see below) |
+| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below); toggle with `EXTRAS` |
+| Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
 
@@ -64,6 +64,21 @@ integration into a reported failure instead of a skip; `TAILSCALE=0` never joins
 on the account side, once: `tag:exe` in the policy's `tagOwners`, MagicDNS and HTTPS
 certificates on, and a trust credential (OpenID Connect, Auth Keys write, `tag:exe`)
 matching the integration ([exe.dev docs](https://exe.dev/docs/integrations-tailscale-wif.md)).
+
+**Tailscale SSH** is turned on once the VM is on the tailnet, since exe.dev VMs run no
+sshd. The tailnet policy decides who gets in, so it also needs an SSH rule for the tag;
+the default `autogroup:self` rule doesn't cover tagged devices:
+
+```jsonc
+{ "action": "accept", "src": ["autogroup:member"], "dst": ["tag:exe"], "users": ["exedev"] }
+```
+
+`accept` rather than `check`, because non-interactive clients (the herdr app) can't
+complete the browser re-auth that `check` asks for.
+
+**herdr phone app** connects over that SSH and runs `hc connect`: address
+`<vm>.<tailnet>.ts.net`, port `22`, user `exedev`. Any key or password the app asks for
+is ignored; Tailscale authorizes by tailnet identity.
 
 **T3 Code** runs as a systemd user service on `0.0.0.0:3773`. In a browser it's at
 `https://<vm>.exe.xyz:3773/`, behind exe.dev login. The desktop and phone apps can't log

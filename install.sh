@@ -11,7 +11,7 @@ set -euo pipefail
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
 PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
-EXTRAS="${EXTRAS:-turso bat lsd herdr t3}"   # optional tools, space-separated
+EXTRAS="${EXTRAS:-turso bat lsd herdr hc t3}"   # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
@@ -239,6 +239,15 @@ if want herdr; then
   log "herdr"
   if has herdr; then skip herdr; else try installer https://herdr.dev/install.sh sh; fi
 fi
+if want hc; then
+  # herdr-core: terminals that outlive the connection, and the API the herdr phone app
+  # speaks over SSH (`hc connect`). Separate from herdr. Its installer verifies the
+  # SHA-256, puts herdr-core in ~/.local/bin and links `hc` to it unless an `hc` already
+  # exists (some window managers ship one), hence checking for herdr-core. `hc update`
+  # updates it; the server starts on demand in transient systemd user units.
+  log "herdr-core (hc)"
+  if has herdr-core; then skip herdr-core; else try installer https://releases.herdr.dev/core/install.sh sh; fi
+fi
 if want turso; then
   log "turso"
   if has turso; then skip turso; else try installer https://get.tur.so/install.sh bash; fi
@@ -311,6 +320,16 @@ if [ "$TAILSCALE" != 0 ]; then
     printf '    \033[1;33m! failed:\033[0m tailscale-wif integration not attached to this VM\n'
   else
     printf '    \033[2mtailscale-wif integration not attached, skipping (TAILSCALE=1 to require it)\033[0m\n'
+  fi
+  # Tailscale SSH, so the herdr phone app (and any tailnet device) can SSH in: exe.dev
+  # VMs run no sshd. Access is decided by the tailnet policy's SSH rules, not keys.
+  # Done with `set` after joining so VMs that skipped the join get it too.
+  if ts_joined; then
+    if tailscale debug prefs 2>/dev/null | jq -e '.RunSSH' >/dev/null; then
+      printf '    \033[2mTailscale SSH already on, skipping\033[0m\n'
+    else
+      try sudo tailscale set --ssh
+    fi
   fi
 fi
 
