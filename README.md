@@ -11,9 +11,9 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Git | delta as the diff pager, with Dracula syntax highlighting, line numbers, and `n` / `N` navigation between diff sections; also used for `git add -p`; `zdiff3` merge conflict style |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
-| AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode |
+| AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode, Antigravity CLI (`agy`) |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), Playwright system deps (browsers stay per-project) |
-| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below); toggle with `EXTRAS` |
+| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below), [Executor](https://executor.sh) (unified MCP gateway on personal VMs; see below); toggle with `EXTRAS` |
 | Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
 
 Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
@@ -50,8 +50,9 @@ Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="
 On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
 `.zshrc` and the `cc-use` `~/.claude` symlink there.
 
-**After the first boot**, log in once per VM: `claude`, `opencode`. Pair T3 Code with
-each device: `t3 pair --tailscale` (one-time link, expires in 5 minutes).
+**After the first boot**, log in once per VM: `claude`, `opencode`, `agy`, and (on personal
+VMs) `executor login`. Pair T3 Code with each device: `t3 pair --tailscale` (one-time link,
+expires in 5 minutes).
 
 **Tailscale** goes through exe.dev's `tailscale-wif` integration (workload identity
 federation): the VM trades a short-lived exe.dev token for a tailnet join, so no auth key
@@ -87,6 +88,17 @@ in to exe.dev (the proxy redirects them), so they pair over the tailnet instead,
 Serve. Don't add a VM to the desktop app as an **SSH** environment while the service is
 down: it starts its own server, which then holds `~/.t3/userdata` and keeps the service
 from starting.
+
+**Executor** ([executor.sh](https://executor.sh)) exposes personal connectors through a
+single stdio MCP (`executor mcp`), installed and wired up on **personal VMs only**
+(skipped when `CLAUDE_PROFILE=work` or `executor` is omitted from `EXTRAS`). One
+`executor login` per VM authenticates all four agents: Claude Code (`~/.claude.json`),
+Codex (`~/.codex/config.toml`), opencode (`~/.config/opencode/opencode.jsonc`), and
+Antigravity (`~/.gemini/config/mcp_config.json`). Because T3 Code runs Antigravity ACP
+with an isolated `GEMINI_HOME` (`~/.t3/userdata/providers/antigravity/<hash>`) and does
+not symlink `config/mcp_config.json`, `install.sh` symlinks it to
+`~/.gemini/config/mcp_config.json` (if T3 ever overwrites that file when initializing
+Antigravity for the first time, re-run `install.sh`).
 
 **GitHub** goes through exe.dev's GitHub integration: no token or SSH key on the VM.
 Each repo needs an integration attached to the VM (`dotfiles` is on `auto:all`), and is
@@ -134,7 +146,8 @@ tool writing to a linked file (e.g. `/model` or `/plugin` editing `settings.json
   writes internal hosts, secret names and branches into them), and this repo is public.
   There's no user-level `CLAUDE.md`, since work repos carry their own. Connectors
   (Atlassian, Slack, ...) come with the work account login, and internal MCPs from each
-  repo's `.mcp.json`.
+  repo's `.mcp.json`. Executor is also skipped on work VMs (neither installed nor wired
+  into any agent).
 
 The pre-commit hook rejects staged lines adding an `autoMode` key, plus any regexes (one
 per line) in the untracked `~/.config/dotfiles/blocked-patterns`. Put employer-specific

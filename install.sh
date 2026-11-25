@@ -11,7 +11,7 @@ set -euo pipefail
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
 PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
-EXTRAS="${EXTRAS:-turso bat lsd herdr hc t3}"   # optional tools, space-separated
+EXTRAS="${EXTRAS:-turso bat lsd herdr hc t3 executor}"   # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
@@ -218,6 +218,9 @@ if has claude; then skip claude; else try installer https://claude.ai/install.sh
 log "opencode"
 if has opencode; then skip opencode; else try installer https://opencode.ai/install bash; fi
 
+log "Antigravity CLI (agy)"
+if has agy; then skip agy; else try installer https://antigravity.google/cli/install.sh bash; fi
+
 # --- Browsers for agents and e2e ---------------------------------------------------------
 # agent-browser's Chrome (Chrome for Testing) plus the system libraries headless Chromium
 # needs. Playwright's browser binaries are per-project (tied to its version), but its
@@ -283,6 +286,11 @@ if want t3; then
   log "T3 Code"
   if has t3; then skip t3; else try installer https://t3.codes/install.sh sh; fi
   if has t3; then try setup_t3_service; fi
+fi
+if [ "$CLAUDE_PROFILE" != work ] && want executor; then
+  # Unified MCP gateway / agent apps CLI; personal VMs only. Drops a symlink in ~/.local/bin.
+  log "executor"
+  if has executor; then skip executor; else try installer https://executor.sh/docs/install.sh sh; fi
 fi
 
 # --- Tailscale ---------------------------------------------------------------------------
@@ -373,7 +381,12 @@ if [ -f "$HOME/.claude/CLAUDE.md" ] && [ ! -L "$HOME/.claude/CLAUDE.md" ] &&
   mv "$HOME/.claude/CLAUDE.md" "$HOME/.claude/rules/exe-dev.md"
   echo "    moved exe.dev's ~/.claude/CLAUDE.md to ~/.claude/rules/exe-dev.md"
 fi
-link_tree "$DOTFILES/home" "$HOME"
+if [ "$CLAUDE_PROFILE" = work ] || ! want executor; then
+  # Executor is personal-only; skip its opencode and Antigravity MCP configs on work VMs.
+  link_tree "$DOTFILES/home" "$HOME" .config/opencode/opencode.jsonc .gemini/config/mcp_config.json
+else
+  link_tree "$DOTFILES/home" "$HOME"
+fi
 if [ "$CLAUDE_PROFILE" = work ]; then
   # Work settings are edited on the VM and never tracked: auto mode and other tools write
   # org details (internal hosts, secret names) into them, and this repo is public. They're
@@ -472,6 +485,59 @@ if has herdr; then
   herdr integration status 2>/dev/null | grep -E '^(claude|codex|opencode):' | sed 's/^/    /' || true
 fi
 
+# Executor MCP wiring (personal VMs only). OpenCode (~/.config/opencode/opencode.jsonc) and
+# standalone Antigravity (~/.gemini/config/mcp_config.json) come from home/; Claude Code and
+# Codex keep state in untracked files so they're registered via CLI. T3 Code isolates
+# Antigravity's GEMINI_HOME to ~/.t3/userdata/providers/antigravity/<sha256(instanceId)> and
+# does not symlink config/mcp_config.json, so link it to ~/.gemini/config/mcp_config.json.
+link_t3_antigravity_mcp() {
+  local src="$HOME/.gemini/config/mcp_config.json"
+  local base="$HOME/.t3/userdata/providers/antigravity"
+  # sha256("antigravity"): T3 Code's default Antigravity provider instance directory.
+  local default_dir="$base/ac0a3dfd6dddb20962cecff6ee5fe65e19d3923be20e52c5ab52ff877f7e4c32/config"
+  local dirs=() dir dst seen=0
+  for dir in "$base"/*/config; do
+    [ -d "$dir" ] || continue
+    dirs+=("$dir")
+    [ "$dir" = "$default_dir" ] && seen=1
+  done
+  if [ "$seen" -eq 0 ] && { want t3 || has t3; }; then
+    mkdir -p "$default_dir"
+    dirs+=("$default_dir")
+  fi
+  for dir in "${dirs[@]}"; do
+    dst="$dir/mcp_config.json"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
+      skip "executor MCP (T3 Antigravity: ${dir#"$base"/})"
+      continue
+    fi
+    if [ -s "$dst" ] || [ -L "$dst" ]; then backup "$dst"; else rm -f "$dst"; fi
+    ln -s "$src" "$dst"
+    echo "    linked ~/${dst#"$HOME"/} -> ~/.gemini/config/mcp_config.json"
+  done
+}
+if [ "$CLAUDE_PROFILE" != work ] && want executor && has executor; then
+  log "Executor MCP"
+  if has claude; then
+    if jq -e '.mcpServers.executor' "$HOME/.claude.json" >/dev/null 2>&1; then
+      skip "executor MCP (claude)"
+    else
+      try claude mcp add --scope user executor -- executor mcp
+    fi
+  fi
+  if has codex; then
+    mkdir -p "${CODEX_HOME:-$HOME/.codex}"
+    if codex mcp get executor >/dev/null 2>&1; then
+      skip "executor MCP (codex)"
+    else
+      try codex mcp add executor -- executor mcp
+    fi
+  fi
+  if [ -e "$HOME/.gemini/config/mcp_config.json" ]; then
+    try link_t3_antigravity_mcp
+  fi
+fi
+
 if [ ${#FAILED[@]} -gt 0 ]; then
   log "Finished with ${#FAILED[@]} failure(s); re-run install.sh to retry:"
   printf '    - %s\n' "${FAILED[@]}"
@@ -481,6 +547,9 @@ fi
 log "Done"
 cat <<EOF
     Open a new shell (or run: exec zsh) to pick everything up.
-    First-run logins still needed on each VM: claude, opencode (gh is handled by the exe.dev GitHub integration).
+    First-run logins still needed on each VM: claude, opencode, agy (gh is handled by the exe.dev GitHub integration).
     T3 Code: pair each device with \`t3 pair --tailscale\` (one-time link, expires in 5 minutes).
 EOF
+if [ "$CLAUDE_PROFILE" != work ] && want executor; then
+  echo "    Executor: run \`executor login\` once to connect Claude, Codex, opencode and Antigravity."
+fi
