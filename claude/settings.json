@@ -13,6 +13,7 @@
       "ScheduleWakeup"
     ]
   },
+  "disableClaudeAiConnectors": true,
   "disableBundledSkills": true,
   "hooks": {
     "SessionStart": [
