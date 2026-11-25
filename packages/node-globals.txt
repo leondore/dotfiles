@@ -8,6 +8,7 @@ wrangler                   wrangler
 @openai/codex              codex
 intelephense               intelephense
 agent-browser              agent-browser
+skills                     skills
 
 # Uncomment on VMs that need them (used in trackstreet-ui):
 # @fission-ai/openspec     openspec

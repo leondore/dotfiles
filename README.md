@@ -11,8 +11,8 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Git | delta as the diff pager, with Dracula syntax highlighting, line numbers, and `n` / `N` navigation between diff sections; also used for `git add -p`; `zdiff3` merge conflict style |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
-| AI tools | Claude Code (with my CLAUDE.md, settings and skills; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
-| Browsers | agent-browser (+ Chrome for Testing, discovery skill for Claude), Playwright system deps (browsers stay per-project) |
+| AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
+| Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), Playwright system deps (browsers stay per-project) |
 | Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below); toggle with `EXTRAS` |
 | Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
 
@@ -103,11 +103,13 @@ those, `gh auth login` with a fine-grained token.
 install.sh              installs tools, then symlinks the two trees below
 bootstrap.sh            exe.dev setup script (clone + install.sh)
 home/                   mirrored into $HOME          (~/.zshrc, ~/.config/starship.toml, ...)
-claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md, skills/)
+claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md)
 claude-work/            seed for ~/.claude/settings.json on work VMs (copied, not linked)
+agents/skills/          my own skills, mirrored into ~/.agents/skills and ~/.claude/skills
 githooks/               pre-commit guard for this repo (set as core.hooksPath by install.sh)
 packages/node-globals.txt   npm globals
 packages/go-tools.txt       go install targets
+packages/skills.txt         third-party agent skills (skills CLI)
 ```
 
 Files are **symlinked**, so editing `~/.zshrc` on a VM edits the repo; commit and push
@@ -137,6 +139,21 @@ tool writing to a linked file (e.g. `/model` or `/plugin` editing `settings.json
 The pre-commit hook rejects staged lines adding an `autoMode` key, plus any regexes (one
 per line) in the untracked `~/.config/dotfiles/blocked-patterns`. Put employer-specific
 names there instead of in this repo. Bypass a false positive with `git commit --no-verify`.
+
+### Agent skills
+
+Skills are user-level, shared by every agent and every repo. Codex and opencode read
+`~/.agents/skills`; Claude Code only reads `~/.claude/skills`, so each skill lands in both.
+
+- **Third-party skills** are listed in `packages/skills.txt` and installed by
+  `install.sh` with the [skills CLI](https://github.com/vercel-labs/skills), which keeps
+  one copy in `~/.agents/skills` and links it into `~/.claude/skills`.
+  - Update: `skills update -g` (`skills check -g` to see what's behind).
+  - Add: a line in `skills.txt`, then re-run `install.sh` (or
+    `skills add <source> --skill <name> -g -a claude-code codex -y`).
+  - Remove: delete the line and run `skills remove -g <name>`; `install.sh` never uninstalls.
+- **My own skills** go in `agents/skills/<name>/SKILL.md` and are symlinked like the other
+  dotfiles, so editing them on a VM edits the repo. Re-run `install.sh` after adding one.
 
 ## Notes
 

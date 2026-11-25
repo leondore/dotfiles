@@ -389,9 +389,31 @@ if [ "$CLAUDE_PROFILE" = work ]; then
 else
   link_tree "$DOTFILES/claude" "$HOME/.claude"
 fi
+# Own skills: agents/skills/<name>/ goes to ~/.agents/skills (Codex, OpenCode) and
+# ~/.claude/skills (Claude Code doesn't read ~/.agents).
+if [ -d "$DOTFILES/agents/skills" ]; then
+  link_tree "$DOTFILES/agents/skills" "$HOME/.agents/skills"
+  link_tree "$DOTFILES/agents/skills" "$HOME/.claude/skills"
+fi
 
 # Pre-commit guard against committing work config to this public repo.
 git -C "$DOTFILES" config core.hooksPath githooks
+
+# Third-party skills from packages/skills.txt, via the skills CLI. It keeps one copy in
+# ~/.agents/skills and links it into ~/.claude/skills. Links left dangling by skills
+# removed from this repo are cleared first, so the CLI can install over them.
+if has skills; then
+  log "Agent skills"
+  find "$HOME/.claude/skills" "$HOME/.agents/skills" -maxdepth 2 -xtype l -delete 2>/dev/null || true
+  while read -r src skill _; do
+    [[ -z "${src:-}" || "$src" == \#* ]] && continue
+    if [ -e "$HOME/.agents/skills/$skill/SKILL.md" ] && [ -e "$HOME/.claude/skills/$skill/SKILL.md" ]; then
+      skip "$skill"
+    else
+      try skills add "$src" --skill "$skill" -g -a claude-code codex -y < /dev/null
+    fi
+  done < "$DOTFILES/packages/skills.txt"
+fi
 
 # herdr agent-state integrations. Their config entries are tracked in this repo
 # (Claude hook in claude/settings.json, opencode plugin in cli.json), so herdr must

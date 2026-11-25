@@ -1,0 +1,5 @@
+# Agent skills installed with the skills CLI (github.com/vercel-labs/skills), globally:
+# into ~/.agents/skills (Codex, OpenCode) and linked into ~/.claude/skills (Claude Code).
+# Skipped if already installed; `skills update -g` updates them in place.
+# source (GitHub owner/repo, URL or path)   skill name
+vercel-labs/agent-browser                   agent-browser
