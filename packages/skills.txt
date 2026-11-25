@@ -1,15 +1,46 @@
 # Agent skills installed with the skills CLI (github.com/vercel-labs/skills), globally:
 # into ~/.agents/skills (Codex, opencode) and linked into ~/.claude/skills (Claude Code).
 #
-#   <source>            every skill in the repo; skipped once any of them is installed
-#   <source> <skill>    just that skill (its frontmatter name; `skills add <source> --list`)
+#   <source>                    every skill in the repo; skipped once any of them is installed
+#   <source> <skill>            just that skill (its frontmatter name; `skills add <source> --list`)
+#   <source> <skill> <new-name> that skill, renamed, e.g. when two sources ship the same name
 #
-# Sources are GitHub owner/repo (or a github.com URL). `skills update -g` updates them all.
+# Sources are GitHub owner/repo (or a github.com URL). `skills update -g` updates them all,
+# renamed ones included.
 
 # Whole repos
-mattpocock/skills
 cloudflare/skills
 vercel-labs/agent-skills
+
+# Matt Pocock: the set the mattpocock-skills Claude plugin ships. Not renamed: they call
+# each other by name ("call the Skill tool with tdd"), which a rename would break.
+mattpocock/skills   ask-matt
+mattpocock/skills   code-review
+mattpocock/skills   codebase-design
+mattpocock/skills   diagnosing-bugs
+mattpocock/skills   domain-modeling
+mattpocock/skills   grill-with-docs
+mattpocock/skills   implement
+mattpocock/skills   implement-spec
+mattpocock/skills   improve-codebase-architecture
+mattpocock/skills   pr
+mattpocock/skills   prototype
+mattpocock/skills   research
+mattpocock/skills   retro
+mattpocock/skills   setup-matt-pocock-skills
+mattpocock/skills   tdd
+mattpocock/skills   to-spec
+mattpocock/skills   to-tickets
+mattpocock/skills   triage
+mattpocock/skills   wayfinder
+mattpocock/skills   wizard
+mattpocock/skills   grill-me
+mattpocock/skills   grilling
+mattpocock/skills   handoff
+mattpocock/skills   teach
+mattpocock/skills   to-questionnaire
+mattpocock/skills   wait-what
+mattpocock/skills   writing-for-agents
 
 # Single skills
 vercel-labs/agent-browser   agent-browser

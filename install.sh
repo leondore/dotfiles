@@ -404,7 +404,8 @@ git -C "$DOTFILES" config core.hooksPath githooks
 # removed from this repo are cleared first, so the CLI can install over them. A whole-repo
 # line is skipped once the CLI's lock has any skill from that repo (so a skill removed
 # with `skills remove -g` stays removed); named skills are checked one by one and
-# collected per source, so each source is fetched once.
+# collected per source, so each source is fetched once. A renamed skill needs its own
+# call (the CLI's --rename takes one skill).
 if has skills; then
   log "Agent skills"
   find "$HOME/.claude/skills" "$HOME/.agents/skills" -maxdepth 2 -xtype l -delete 2>/dev/null || true
@@ -413,26 +414,38 @@ if has skills; then
       try { console.log([...new Set(JSON.parse(s).map(e => e.source))].join(" ")); } catch {}
     });') "
   declare -A missing=()
-  sources=()
-  while read -r src skill _; do
+  sources=() renames=()
+  while read -r src skill as _; do
     [[ -z "${src:-}" || "$src" == \#* ]] && continue
     [[ -v "missing[$src]" ]] || { sources+=("$src"); missing[$src]=""; }
+    name="${as:-${skill:-}}"
     if [ -z "${skill:-}" ]; then
       key="${src#https://github.com/}"; key="${key%.git}"
       [[ "$have_sources" == *" $key "* ]] || missing[$src]="*"
-    elif [ "${missing[$src]}" != "*" ] &&
-         { [ ! -e "$HOME/.agents/skills/$skill/SKILL.md" ] || [ ! -e "$HOME/.claude/skills/$skill/SKILL.md" ]; }; then
+    elif [ -e "$HOME/.agents/skills/$name/SKILL.md" ] && [ -e "$HOME/.claude/skills/$name/SKILL.md" ]; then
+      continue
+    elif [ -n "${as:-}" ]; then
+      renames+=("$src $skill $as")
+    elif [ "${missing[$src]}" != "*" ]; then
       missing[$src]+=" $skill"
     fi
   done < "$DOTFILES/packages/skills.txt"
+  calls=${#renames[@]}
   for src in "${sources[@]}"; do
-    case "${missing[$src]}" in
-      "") skip "$src" ;;
-      "*") try skills add "$src" -g -a claude-code codex -y < /dev/null ;;
-      *) read -ra names <<< "${missing[$src]}"
-         try skills add "$src" --skill "${names[@]}" -g -a claude-code codex -y < /dev/null ;;
-    esac
+    [ -n "${missing[$src]}" ] || continue
+    calls=$((calls + 1))
+    if [ "${missing[$src]}" = "*" ]; then
+      try skills add "$src" -g -a claude-code codex -y < /dev/null
+    else
+      read -ra names <<< "${missing[$src]}"
+      try skills add "$src" --skill "${names[@]}" -g -a claude-code codex -y < /dev/null
+    fi
   done
+  for r in "${renames[@]}"; do
+    read -r src skill as <<< "$r"
+    try skills add "$src" --skill "$skill" --rename "$as" -g -a claude-code codex -y < /dev/null
+  done
+  [ "$calls" -gt 0 ] || skip "every listed skill"
 fi
 
 # herdr agent-state integrations. Their config entries are tracked in this repo

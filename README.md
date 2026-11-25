@@ -148,8 +148,9 @@ Skills are user-level, shared by every agent and every repo. Codex and opencode 
 - **Third-party skills** are listed in `packages/skills.txt` and installed by
   `install.sh` with the [skills CLI](https://github.com/vercel-labs/skills), which keeps
   one copy in `~/.agents/skills` and links it into `~/.claude/skills`.
-  A line is either a whole repo (`cloudflare/skills`) or one skill from it
-  (`anthropics/skills frontend-design`).
+  A line is either a whole repo (`cloudflare/skills`), one skill from it
+  (`anthropics/skills frontend-design`), or one skill under a new name
+  (`some/repo research some-research`), for when two sources ship the same name.
   - Update: `skills update -g` (`skills check -g` to see what's behind). This updates
     installed skills only; to pick up skills a whole repo added since, run
     `skills add <source> -g -y -a claude-code codex`.
