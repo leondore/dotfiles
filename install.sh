@@ -401,18 +401,28 @@ git -C "$DOTFILES" config core.hooksPath githooks
 
 # Third-party skills from packages/skills.txt, via the skills CLI. It keeps one copy in
 # ~/.agents/skills and links it into ~/.claude/skills. Links left dangling by skills
-# removed from this repo are cleared first, so the CLI can install over them.
+# removed from this repo are cleared first, so the CLI can install over them. Missing
+# skills are collected per source, so each source is fetched once.
 if has skills; then
   log "Agent skills"
   find "$HOME/.claude/skills" "$HOME/.agents/skills" -maxdepth 2 -xtype l -delete 2>/dev/null || true
+  declare -A missing=()
+  sources=()
   while read -r src skill _; do
     [[ -z "${src:-}" || "$src" == \#* ]] && continue
-    if [ -e "$HOME/.agents/skills/$skill/SKILL.md" ] && [ -e "$HOME/.claude/skills/$skill/SKILL.md" ]; then
-      skip "$skill"
-    else
-      try skills add "$src" --skill "$skill" -g -a claude-code codex -y < /dev/null
+    [[ -v "missing[$src]" ]] || { sources+=("$src"); missing[$src]=""; }
+    if [ ! -e "$HOME/.agents/skills/$skill/SKILL.md" ] || [ ! -e "$HOME/.claude/skills/$skill/SKILL.md" ]; then
+      missing[$src]+=" $skill"
     fi
   done < "$DOTFILES/packages/skills.txt"
+  for src in "${sources[@]}"; do
+    read -ra names <<< "${missing[$src]}"
+    if [ ${#names[@]} -eq 0 ]; then
+      skip "$src"
+    else
+      try skills add "$src" --skill "${names[@]}" -g -a claude-code codex -y < /dev/null
+    fi
+  done
 fi
 
 # herdr agent-state integrations. Their config entries are tracked in this repo

@@ -1,5 +1,50 @@
 # Agent skills installed with the skills CLI (github.com/vercel-labs/skills), globally:
-# into ~/.agents/skills (Codex, OpenCode) and linked into ~/.claude/skills (Claude Code).
-# Skipped if already installed; `skills update -g` updates them in place.
+# into ~/.agents/skills (Codex, opencode) and linked into ~/.claude/skills (Claude Code).
+# One skill per line, by its frontmatter name (`skills add <source> --list` shows them).
+# Missing ones are installed in one call per source; `skills update -g` updates them.
 # source (GitHub owner/repo, URL or path)   skill name
+
 vercel-labs/agent-browser                   agent-browser
+
+# Matt Pocock: the set the mattpocock-skills Claude plugin ships (not the in-progress/misc ones)
+mattpocock/skills                           ask-matt
+mattpocock/skills                           code-review
+mattpocock/skills                           codebase-design
+mattpocock/skills                           diagnosing-bugs
+mattpocock/skills                           domain-modeling
+mattpocock/skills                           grill-with-docs
+mattpocock/skills                           implement
+mattpocock/skills                           implement-spec
+mattpocock/skills                           improve-codebase-architecture
+mattpocock/skills                           pr
+mattpocock/skills                           prototype
+mattpocock/skills                           research
+mattpocock/skills                           retro
+mattpocock/skills                           setup-matt-pocock-skills
+mattpocock/skills                           tdd
+mattpocock/skills                           to-spec
+mattpocock/skills                           to-tickets
+mattpocock/skills                           triage
+mattpocock/skills                           wayfinder
+mattpocock/skills                           wizard
+mattpocock/skills                           grill-me
+mattpocock/skills                           grilling
+mattpocock/skills                           handoff
+mattpocock/skills                           teach
+mattpocock/skills                           to-questionnaire
+mattpocock/skills                           wait-what
+mattpocock/skills                           writing-for-agents
+
+cloudflare/skills                           cloudflare
+
+vercel-labs/agent-skills                    vercel-composition-patterns
+vercel-labs/agent-skills                    deploy-to-vercel
+vercel-labs/agent-skills                    vercel-react-best-practices
+vercel-labs/agent-skills                    vercel-react-native-skills
+vercel-labs/agent-skills                    vercel-react-view-transitions
+vercel-labs/agent-skills                    vercel-cli-with-tokens
+vercel-labs/agent-skills                    vercel-optimize
+vercel-labs/agent-skills                    web-design-guidelines
+vercel-labs/agent-skills                    writing-guidelines
+
+anthropics/skills                           frontend-design

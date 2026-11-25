@@ -11,7 +11,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Git | delta as the diff pager, with Dracula syntax highlighting, line numbers, and `n` / `N` navigation between diff sections; also used for `git add -p`; `zdiff3` merge conflict style |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
-| AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs, mattpocock-skills, cloudflare (skills only, its MCP is blocked via `deniedMcpServers`; agents use wrangler); ccstatusline with my config), opencode |
+| AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), Playwright system deps (browsers stay per-project) |
 | Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below); toggle with `EXTRAS` |
 | Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
@@ -162,9 +162,9 @@ Skills are user-level, shared by every agent and every repo. Codex and opencode 
 - **fnm vs Volta:** fnm installs globals per Node version. To keep the Volta feel,
   npm's global prefix is set to `~/.local/share/npm-global`, so global CLIs survive
   switching versions. Change the default with `fnm default <v>`.
-- **Turning a plugin off on one VM** (e.g. mattpocock-skills on work VMs): do it at
+- **Turning a plugin off on one VM** (e.g. php-lsp on work VMs): do it at
   project scope, in the repo's `.claude/settings.local.json`:
-  `{"enabledPlugins": {"mattpocock-skills@claude-plugins-official": false}}`.
+  `{"enabledPlugins": {"php-lsp@claude-plugins-official": false}}`.
   Disabling at user scope would edit the symlinked `settings.json` in this repo.
 - **herdr integrations** (agent state in the sidebar) are wired up by `install.sh`, not
   by running `herdr integration install` yourself: their config entries are tracked here

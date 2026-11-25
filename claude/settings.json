@@ -15,11 +15,6 @@
   },
   "disableClaudeAiConnectors": true,
   "disableBundledSkills": true,
-  "deniedMcpServers": [
-    {
-      "serverUrl": "https://mcp.cloudflare.com/mcp"
-    }
-  ],
   "hooks": {
     "SessionStart": [
       {
@@ -42,11 +37,9 @@
   },
   "enabledPlugins": {
     "typescript-lsp@claude-plugins-official": true,
-    "mattpocock-skills@claude-plugins-official": true,
     "gopls-lsp@claude-plugins-official": true,
     "rust-analyzer-lsp@claude-plugins-official": true,
-    "php-lsp@claude-plugins-official": true,
-    "cloudflare@claude-plugins-official": true
+    "php-lsp@claude-plugins-official": true
   },
   "modelSettings": {
     "claude-opus-5-5": {
