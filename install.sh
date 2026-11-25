@@ -401,27 +401,37 @@ git -C "$DOTFILES" config core.hooksPath githooks
 
 # Third-party skills from packages/skills.txt, via the skills CLI. It keeps one copy in
 # ~/.agents/skills and links it into ~/.claude/skills. Links left dangling by skills
-# removed from this repo are cleared first, so the CLI can install over them. Missing
-# skills are collected per source, so each source is fetched once.
+# removed from this repo are cleared first, so the CLI can install over them. A whole-repo
+# line is skipped once the CLI's lock has any skill from that repo (so a skill removed
+# with `skills remove -g` stays removed); named skills are checked one by one and
+# collected per source, so each source is fetched once.
 if has skills; then
   log "Agent skills"
   find "$HOME/.claude/skills" "$HOME/.agents/skills" -maxdepth 2 -xtype l -delete 2>/dev/null || true
+  have_sources=" $(skills ls -g --json < /dev/null 2>/dev/null | node -e '
+    let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
+      try { console.log([...new Set(JSON.parse(s).map(e => e.source))].join(" ")); } catch {}
+    });') "
   declare -A missing=()
   sources=()
   while read -r src skill _; do
     [[ -z "${src:-}" || "$src" == \#* ]] && continue
     [[ -v "missing[$src]" ]] || { sources+=("$src"); missing[$src]=""; }
-    if [ ! -e "$HOME/.agents/skills/$skill/SKILL.md" ] || [ ! -e "$HOME/.claude/skills/$skill/SKILL.md" ]; then
+    if [ -z "${skill:-}" ]; then
+      key="${src#https://github.com/}"; key="${key%.git}"
+      [[ "$have_sources" == *" $key "* ]] || missing[$src]="*"
+    elif [ "${missing[$src]}" != "*" ] &&
+         { [ ! -e "$HOME/.agents/skills/$skill/SKILL.md" ] || [ ! -e "$HOME/.claude/skills/$skill/SKILL.md" ]; }; then
       missing[$src]+=" $skill"
     fi
   done < "$DOTFILES/packages/skills.txt"
   for src in "${sources[@]}"; do
-    read -ra names <<< "${missing[$src]}"
-    if [ ${#names[@]} -eq 0 ]; then
-      skip "$src"
-    else
-      try skills add "$src" --skill "${names[@]}" -g -a claude-code codex -y < /dev/null
-    fi
+    case "${missing[$src]}" in
+      "") skip "$src" ;;
+      "*") try skills add "$src" -g -a claude-code codex -y < /dev/null ;;
+      *) read -ra names <<< "${missing[$src]}"
+         try skills add "$src" --skill "${names[@]}" -g -a claude-code codex -y < /dev/null ;;
+    esac
   done
 fi
 

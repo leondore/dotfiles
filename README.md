@@ -148,10 +148,15 @@ Skills are user-level, shared by every agent and every repo. Codex and opencode 
 - **Third-party skills** are listed in `packages/skills.txt` and installed by
   `install.sh` with the [skills CLI](https://github.com/vercel-labs/skills), which keeps
   one copy in `~/.agents/skills` and links it into `~/.claude/skills`.
-  - Update: `skills update -g` (`skills check -g` to see what's behind).
-  - Add: a line in `skills.txt`, then re-run `install.sh` (or
-    `skills add <source> --skill <name> -g -a claude-code codex -y`).
-  - Remove: delete the line and run `skills remove -g <name>`; `install.sh` never uninstalls.
+  A line is either a whole repo (`cloudflare/skills`) or one skill from it
+  (`anthropics/skills frontend-design`).
+  - Update: `skills update -g` (`skills check -g` to see what's behind). This updates
+    installed skills only; to pick up skills a whole repo added since, run
+    `skills add <source> -g -y -a claude-code codex`.
+  - Add: a line in `skills.txt`, then re-run `install.sh`.
+  - Remove: delete the line and run `skills remove -g <name>`; `install.sh` never
+    uninstalls. To drop one skill of a whole repo on one VM, just `skills remove -g` it:
+    a whole repo isn't reinstalled while any of its skills are.
 - **My own skills** go in `agents/skills/<name>/SKILL.md` and are symlinked like the other
   dotfiles, so editing them on a VM edits the repo. Re-run `install.sh` after adding one.
 
