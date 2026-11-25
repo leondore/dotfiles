@@ -405,16 +405,16 @@ git -C "$DOTFILES" config core.hooksPath githooks
 # line is skipped once the CLI's lock has any skill from that repo (so a skill removed
 # with `skills remove -g` stays removed); named skills are checked one by one and
 # collected per source, so each source is fetched once. A renamed skill needs its own
-# call (the CLI's --rename takes one skill).
-if has skills; then
-  log "Agent skills"
+# call (the CLI's --rename takes one skill). Everything is local to the function, since
+# install.sh already uses names like `missing` at the top level.
+install_skills() {
+  local -A missing=()
+  local sources=() renames=() names=() have_sources src skill as name key r calls
   find "$HOME/.claude/skills" "$HOME/.agents/skills" -maxdepth 2 -xtype l -delete 2>/dev/null || true
   have_sources=" $(skills ls -g --json < /dev/null 2>/dev/null | node -e '
     let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
       try { console.log([...new Set(JSON.parse(s).map(e => e.source))].join(" ")); } catch {}
-    });') "
-  declare -A missing=()
-  sources=() renames=()
+    });' || true) "
   while read -r src skill as _; do
     [[ -z "${src:-}" || "$src" == \#* ]] && continue
     [[ -v "missing[$src]" ]] || { sources+=("$src"); missing[$src]=""; }
@@ -446,6 +446,10 @@ if has skills; then
     try skills add "$src" --skill "$skill" --rename "$as" -g -a claude-code codex -y < /dev/null
   done
   [ "$calls" -gt 0 ] || skip "every listed skill"
+}
+if has skills; then
+  log "Agent skills"
+  install_skills
 fi
 
 # herdr agent-state integrations. Their config entries are tracked in this repo
