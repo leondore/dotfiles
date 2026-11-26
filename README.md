@@ -100,6 +100,24 @@ not symlink `config/mcp_config.json`, `install.sh` symlinks it to
 `~/.gemini/config/mcp_config.json` (if T3 ever overwrites that file when initializing
 Antigravity for the first time, re-run `install.sh`).
 
+To identify and revoke VMs individually instead of sharing generic `Executor CLI` device
+logins, create a single-org Personal Access Token named after the VM in Executor
+(**Connections → Personal access token → Manage tokens**) and set it in both
+`~/.zshenv.local` (for shells) and `~/.t3/service.env` (for the T3 Code systemd service,
+which doesn't source `~/.zshenv.local`), then restart T3 Code:
+
+```sh
+cat <<'EOF' >> ~/.zshenv.local
+export EXECUTOR_HOST="https://mcp.executor.sh"
+export EXECUTOR_ACCESS_TOKEN="<pat>"
+EOF
+cat <<'EOF' >> ~/.t3/service.env
+EXECUTOR_HOST=https://mcp.executor.sh
+EXECUTOR_ACCESS_TOKEN=<pat>
+EOF
+systemctl --user restart t3code.service
+```
+
 **GitHub** goes through exe.dev's GitHub integration: no token or SSH key on the VM.
 Each repo needs an integration attached to the VM (`dotfiles` is on `auto:all`), and is
 cloned from the proxy, `https://github.int.exe.xyz/<owner>/<repo>.git`. `bootstrap.sh`
