@@ -5,12 +5,15 @@
 #   <source> <skill>            just that skill (its frontmatter name; `skills add <source> --list`)
 #   <source> <skill> <new-name> that skill, renamed, e.g. when two sources ship the same name
 #
+# Any line can end in only:<profile> or only:<tool> to install it only on that profile
+# (personal, work) or when that tool is in TOOLS (see install.sh).
+#
 # Sources are GitHub owner/repo (or a github.com URL). `skills update -g` updates them all,
 # renamed ones included.
 
 # Whole repos
-cloudflare/skills
-vercel-labs/agent-skills
+cloudflare/skills          only:personal
+vercel-labs/agent-skills   only:personal
 
 # Matt Pocock: the set the mattpocock-skills Claude plugin ships. Not renamed: they call
 # each other by name ("call the Skill tool with tdd"), which a rename would break.

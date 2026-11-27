@@ -1,15 +1,18 @@
 # npm package            binary it provides (skipped if already on PATH)
+# A line ending in only:<profile> or only:<tool> is installed only on that profile
+# (personal, work) or when that tool is in TOOLS (see install.sh).
 pnpm                       pnpm
 typescript                 tsc
 typescript-language-server typescript-language-server
 @vue/language-server       vue-language-server
-vercel                     vercel
-wrangler                   wrangler
-@openai/codex              codex
-intelephense               intelephense
+intelephense               intelephense                 only:php
 agent-browser              agent-browser
 skills                     skills
 
-# Uncomment on VMs that need them (used in trackstreet-ui):
+vercel                     vercel                       only:personal
+wrangler                   wrangler                     only:personal
+@openai/codex              codex                        only:personal
+yarn                       yarn                         only:work
+
+# Uncomment on VMs that need it:
 # @fission-ai/openspec     openspec
-# yarn                     yarn

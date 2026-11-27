@@ -2,28 +2,55 @@
 # Leon's dev environment: idempotent setup for Ubuntu (exe.dev VMs, WSL).
 # Safe to re-run: anything already installed is skipped, dotfiles are re-linked.
 #
-#   bash install.sh                     # everything
-#   NODE_VERSION=24 bash install.sh     # pin a Node major instead of latest LTS
-#   EXTRAS="" bash install.sh           # skip the optional extras
-#   TAILSCALE=1 bash install.sh         # require joining the tailnet (0 = never)
+#   bash install.sh                        # the profile's default tools (personal: all of them)
+#   CLAUDE_PROFILE=work bash install.sh    # work profile, with its smaller tool set
+#   TOOLS="go php bat" bash install.sh     # pick the optional tools yourself ("" for none)
+#   NODE_VERSION=24 bash install.sh        # pin a Node major instead of latest LTS
+#   TAILSCALE=1 bash install.sh            # require joining the tailnet (0 = never)
 set -euo pipefail
 
 DOTFILES="${DOTFILES:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 NODE_VERSION="${NODE_VERSION:-lts}"          # "lts" or any fnm version spec (24, 22.23.3, ...)
 PHP_VERSION="${PHP_VERSION:-8.5}"            # php.new / herd-lite build (falls back to 8.4 if unavailable)
-EXTRAS="${EXTRAS:-turso bat lsd herdr hc t3 executor}"   # optional tools, space-separated
 NPM_GLOBAL="$HOME/.local/share/npm-global"   # npm globals live outside fnm's per-version dirs
 BACKUP_DIR="$HOME/.dotfiles-backup/$(date +%Y%m%d-%H%M%S)"
 
 # Claude profile: "personal" links claude/ as-is; "work" keeps settings.json and CLAUDE.md
-# out of the repo (see the linking step). Remembered per machine so a plain re-run
-# never swaps a work VM back to the personal settings.
+# out of the repo (see the linking step). It also picks the default TOOLS below.
+# Remembered per machine so a plain re-run never swaps a work VM back to personal.
 PROFILE_FILE="$HOME/.config/dotfiles/profile"
-CLAUDE_PROFILE="${CLAUDE_PROFILE:-$(cat "$PROFILE_FILE" 2>/dev/null || echo personal)}"
+SAVED_PROFILE="$(cat "$PROFILE_FILE" 2>/dev/null || true)"
+CLAUDE_PROFILE="${CLAUDE_PROFILE:-${SAVED_PROFILE:-personal}}"
 case "$CLAUDE_PROFILE" in
   personal|work) ;;
   *) echo "CLAUDE_PROFILE must be 'personal' or 'work', got '$CLAUDE_PROFILE'" >&2; exit 1 ;;
 esac
+
+# Optional tools: runtimes, opencode, tmux and the extras. Everything else (shell setup,
+# Node, Claude Code, agy, browsers, dotfiles) is always installed. The default comes
+# from the profile; an explicit TOOLS (even "") wins, and is remembered per machine like
+# the profile. A saved list is dropped when the profile changes.
+TOOLS_ALL="bun go php rust opencode tmux bat lsd herdr hc turso t3 executor"
+TOOLS_WORK="go php bat lsd herdr hc"
+TOOLS_FILE="$HOME/.config/dotfiles/tools"
+if [ -n "${EXTRAS+x}" ]; then
+  echo "EXTRAS was renamed to TOOLS, which also covers runtimes (see Profiles in the README)." >&2
+  exit 1
+fi
+if [ -z "${TOOLS+x}" ]; then
+  if [ "$CLAUDE_PROFILE" = "$SAVED_PROFILE" ] && [ -f "$TOOLS_FILE" ]; then TOOLS="$(cat "$TOOLS_FILE")"
+  elif [ "$CLAUDE_PROFILE" = work ]; then TOOLS="$TOOLS_WORK"
+  else TOOLS="$TOOLS_ALL"; fi
+fi
+read -ra tool_list <<< "$TOOLS"
+for t in ${tool_list[@]+"${tool_list[@]}"}; do
+  [[ " $TOOLS_ALL " == *" $t "* ]] || { echo "Unknown tool '$t' in TOOLS (known: $TOOLS_ALL)" >&2; exit 1; }
+done
+TOOLS="${tool_list[*]+"${tool_list[*]}"}"
+if [ "$CLAUDE_PROFILE" = work ] && [[ " $TOOLS " == *" executor "* ]]; then
+  echo "executor is personal-only; drop it from TOOLS for CLAUDE_PROFILE=work." >&2
+  exit 1
+fi
 
 # Tailscale: "auto" joins the tailnet when exe.dev's tailscale-wif integration is attached
 # to this VM (it is for the `personal` tag), "1" requires it, "0" never joins.
@@ -36,7 +63,25 @@ esac
 log()  { printf '\n\033[1;34m==>\033[0m %s\n' "$*"; }
 skip() { printf '    \033[2m%s already installed, skipping\033[0m\n' "$1"; }
 has()  { command -v "$1" >/dev/null 2>&1; }
-want() { [[ " $EXTRAS " == *" $1 "* ]]; }
+want() { [[ " $TOOLS " == *" $1 "* ]]; }
+
+# Lines of a packages/*.txt list that apply here, minus comments and blank lines. A line
+# tagged only:<profile> or only:<tool> (e.g. only:work, only:php) is kept only for that
+# profile, or when that tool is in TOOLS; the tag itself is dropped from the output.
+pkg_lines() {
+  local line w tag words fields
+  while read -r line; do
+    read -ra words <<< "${line%%#*}"
+    tag="" fields=()
+    for w in ${words[@]+"${words[@]}"}; do
+      if [[ "$w" == only:* ]]; then tag="${w#only:}"; else fields+=("$w"); fi
+    done
+    [ ${#fields[@]} -gt 0 ] || continue
+    if [ -z "$tag" ] || [ "$tag" = "$CLAUDE_PROFILE" ] || want "$tag"; then
+      printf '%s\n' "${fields[*]}"
+    fi
+  done < "$1"
+}
 
 # One flaky download shouldn't stop the rest of the setup: non-critical steps go
 # through `try`, failures are collected and reported at the end.
@@ -53,11 +98,12 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 1
 fi
 
-# This sets up the full toolset for exe.dev VMs. WSL distros are kept to a subset by hand
-# (see "WSL" in the README), and a run there would install everything again, so it only
-# runs on WSL when explicitly asked to.
+# This sets up exe.dev VMs. WSL distros are kept to a hand-picked subset (see "WSL" in
+# the README), and a run there would install the profile's whole tool set and relink
+# every dotfile, so it only runs on WSL when explicitly asked to.
 if grep -qi microsoft /proc/version 2>/dev/null && [ "${ALLOW_WSL:-}" != 1 ]; then
-  echo "WSL detected. This installs every tool in the README (runtimes, CLIs, extras) and links all dotfiles." >&2
+  echo "WSL detected. This would set up the '$CLAUDE_PROFILE' profile: the always-installed tools in the README," >&2
+  echo "plus TOOLS=\"$TOOLS\", and link every dotfile." >&2
   echo "Re-run with ALLOW_WSL=1 if that's what you want on this distro." >&2
   exit 1
 fi
@@ -71,9 +117,12 @@ case "$(uname -m)" in
   *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
 esac
 
+log "Profile: $CLAUDE_PROFILE, tools: ${TOOLS:-(none)}"
+
 # --- System packages ---------------------------------------------------------
 log "System packages"
-APT_PKGS=(zsh git git-delta less curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep fd-find tmux)
+APT_PKGS=(zsh git git-delta less curl ca-certificates unzip build-essential pkg-config libssl-dev jq ripgrep fd-find)
+want tmux && APT_PKGS+=(tmux)
 want bat && APT_PKGS+=(bat)
 want lsd && APT_PKGS+=(lsd)
 missing=()
@@ -156,36 +205,38 @@ setup_node() {
 if has fnm && try setup_node && has npm; then
   log "npm globals"
   while read -r pkg bin _; do
-    [[ -z "${pkg:-}" || "$pkg" == \#* ]] && continue
     if has "${bin:-$pkg}"; then skip "$pkg"; else try npm install -g --no-fund --no-audit "$pkg"; fi
-  done < "$DOTFILES/packages/node-globals.txt"
+  done < <(pkg_lines "$DOTFILES/packages/node-globals.txt")
 fi
 
 # --- bun ---------------------------------------------------------------------------
-log "bun"
-if has bun; then skip bun; else try installer https://bun.sh/install bash; fi
+if want bun; then
+  log "bun"
+  if has bun; then skip bun; else try installer https://bun.sh/install bash; fi
+fi
 
 # --- Go ----------------------------------------------------------------------------
-log "Go"
+# The exe.dev base image already has Go; the go-tools.txt tools still need `go` in TOOLS.
 install_go() {
   local ver
   ver="$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1)" &&
   curl -fsSL "https://go.dev/dl/${ver}.linux-${GOARCH}.tar.gz" -o /tmp/go.tgz &&
   sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf /tmp/go.tgz && rm /tmp/go.tgz
 }
-if has go; then skip "go ($(go version | awk '{print $3}'))"; else try install_go; fi
-if has go; then
-  while read -r mod bin _; do
-    [[ -z "${mod:-}" || "$mod" == \#* ]] && continue
-    if has "$bin"; then skip "$bin"; else echo "    go install $mod"; try go install "$mod"; fi
-  done < "$DOTFILES/packages/go-tools.txt"
+if want go; then
+  log "Go"
+  if has go; then skip "go ($(go version | awk '{print $3}'))"; else try install_go; fi
+  if has go; then
+    while read -r mod bin _; do
+      if has "$bin"; then skip "$bin"; else echo "    go install $mod"; try go install "$mod"; fi
+    done < <(pkg_lines "$DOTFILES/packages/go-tools.txt")
+  fi
 fi
 
 # --- PHP (php.new) -------------------------------------------------------------------
 # Static PHP + Composer + Laravel installer from the same downloads php.new uses. Done
 # by hand because the php.new script calls `clear` (fatal without a TTY under set -e),
 # doesn't fail on HTTP errors, and edits rc files. PATH/PHP_INI_SCAN_DIR are in .zshenv.
-log "PHP, Composer, Laravel installer"
 HERD_LITE="$HOME/.config/herd-lite/bin"
 install_php() {
   local base=https://download.herdphp.com arch=x64 v
@@ -205,22 +256,29 @@ install_php() {
   # herd-lite's Composer build lags behind; bring it to the latest stable
   "$HERD_LITE/php" "$HERD_LITE/composer" self-update --stable -q
 }
-export PATH="$HERD_LITE:$PATH" PHP_INI_SCAN_DIR="$HERD_LITE"
-if has php && has composer; then skip "php ($(php -r 'echo PHP_VERSION;'))"; else try install_php; fi
+if want php; then
+  log "PHP, Composer, Laravel installer"
+  export PATH="$HERD_LITE:$PATH" PHP_INI_SCAN_DIR="$HERD_LITE"
+  if has php && has composer; then skip "php ($(php -r 'echo PHP_VERSION;'))"; else try install_php; fi
+fi
 
 # --- Rust ----------------------------------------------------------------------------
-log "Rust"
-if has rustup; then skip rustup; else
-  try installer https://sh.rustup.rs sh -y --no-modify-path --profile default
+if want rust; then
+  log "Rust"
+  if has rustup; then skip rustup; else
+    try installer https://sh.rustup.rs sh -y --no-modify-path --profile default
+  fi
+  if has rustup; then rustup component add rust-analyzer clippy rustfmt >/dev/null 2>&1 || true; fi
 fi
-if has rustup; then rustup component add rust-analyzer clippy rustfmt >/dev/null 2>&1 || true; fi
 
 # --- AI coding tools -------------------------------------------------------------------
 log "Claude Code"
 if has claude; then skip claude; else try installer https://claude.ai/install.sh bash; fi
 
-log "opencode"
-if has opencode; then skip opencode; else try installer https://opencode.ai/install bash; fi
+if want opencode; then
+  log "opencode"
+  if has opencode; then skip opencode; else try installer https://opencode.ai/install bash; fi
+fi
 
 log "Antigravity CLI (agy)"
 if has agy; then skip agy; else try installer https://antigravity.google/cli/install.sh bash; fi
@@ -258,7 +316,7 @@ fi
 
 # --- Extras ------------------------------------------------------------------------------
 if want herdr; then
-  # Agent-aware multiplexer (tmux stays installed as the fallback). The installer
+  # Agent-aware multiplexer (tmux, when in TOOLS, is the fallback). The installer
   # verifies the binary's SHA-256 and drops it in ~/.local/bin; `herdr update` updates it.
   log "herdr"
   if has herdr; then skip herdr; else try installer https://herdr.dev/install.sh sh; fi
@@ -308,8 +366,9 @@ if want t3; then
   if has t3; then skip t3; else try installer https://t3.codes/install.sh sh; fi
   if has t3; then try setup_t3_service; fi
 fi
-if [ "$CLAUDE_PROFILE" != work ] && want executor; then
-  # Unified MCP gateway / agent apps CLI; personal VMs only. Drops a symlink in ~/.local/bin.
+if want executor; then
+  # Unified MCP gateway / agent apps CLI; personal VMs only (the TOOLS check at the top
+  # rejects it on work). Drops a symlink in ~/.local/bin.
   log "executor"
   if has executor; then skip executor; else try installer https://executor.sh/docs/install.sh sh; fi
 fi
@@ -390,7 +449,7 @@ link_tree() {
 }
 
 log "Linking dotfiles (Claude profile: $CLAUDE_PROFILE)"
-mkdir -p "$(dirname "$PROFILE_FILE")" && echo "$CLAUDE_PROFILE" > "$PROFILE_FILE"
+mkdir -p "$(dirname "$PROFILE_FILE")" && echo "$CLAUDE_PROFILE" > "$PROFILE_FILE" && echo "$TOOLS" > "$TOOLS_FILE"
 # ~/.claude must be a real directory (Claude Code keeps state there), not a symlink.
 if [ -L "$HOME/.claude" ]; then mkdir -p "$BACKUP_DIR"; mv "$HOME/.claude" "$BACKUP_DIR/.claude-link"; fi
 mkdir -p "$HOME/.claude"
@@ -402,8 +461,8 @@ if [ -f "$HOME/.claude/CLAUDE.md" ] && [ ! -L "$HOME/.claude/CLAUDE.md" ] &&
   mv "$HOME/.claude/CLAUDE.md" "$HOME/.claude/rules/exe-dev.md"
   echo "    moved exe.dev's ~/.claude/CLAUDE.md to ~/.claude/rules/exe-dev.md"
 fi
-if [ "$CLAUDE_PROFILE" = work ] || ! want executor; then
-  # Executor is personal-only; skip its opencode and Antigravity MCP configs on work VMs.
+if ! want executor; then
+  # No Executor (always the case on work VMs): skip its opencode and Antigravity MCP configs.
   link_tree "$DOTFILES/home" "$HOME" .config/opencode/opencode.jsonc .gemini/config/mcp_config.json
 else
   link_tree "$DOTFILES/home" "$HOME"
@@ -463,7 +522,7 @@ install_skills() {
     elif [ "${missing[$src]}" != "*" ]; then
       missing[$src]+=" $skill"
     fi
-  done < "$DOTFILES/packages/skills.txt"
+  done < <(pkg_lines "$DOTFILES/packages/skills.txt")
   calls=${#renames[@]}
   for src in "${sources[@]}"; do
     [ -n "${missing[$src]}" ] || continue
@@ -537,7 +596,7 @@ link_t3_antigravity_mcp() {
     echo "    linked ~/${dst#"$HOME"/} -> ~/.gemini/config/mcp_config.json"
   done
 }
-if [ "$CLAUDE_PROFILE" != work ] && want executor && has executor; then
+if want executor && has executor; then
   log "Executor MCP"
   if has claude; then
     if jq -e '.mcpServers.executor' "$HOME/.claude.json" >/dev/null 2>&1; then
@@ -568,9 +627,11 @@ fi
 log "Done"
 cat <<EOF
     Open a new shell (or run: exec zsh) to pick everything up.
-    First-run logins still needed on each VM: claude, opencode, agy (gh is handled by the exe.dev GitHub integration).
-    T3 Code: pair each device with \`t3 pair --tailscale\` (one-time link, expires in 5 minutes).
+    First-run logins still needed on each VM: claude, $(has opencode && echo 'opencode, ')agy (gh is handled by the exe.dev GitHub integration).
 EOF
-if [ "$CLAUDE_PROFILE" != work ] && want executor; then
+if want t3; then
+  echo "    T3 Code: pair each device with \`t3 pair --tailscale\` (one-time link, expires in 5 minutes)."
+fi
+if want executor; then
   echo "    Executor: run \`executor login\` once to connect Claude, Codex, opencode and Antigravity."
 fi

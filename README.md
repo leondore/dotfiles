@@ -9,14 +9,18 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | --- | --- |
 | Shell | zsh (login shell), zsh-autosuggestions, prefix history search on Up/Down, starship, fzf (keybindings), fd, ripgrep, tmux |
 | Git | delta as the diff pager, with Dracula syntax highlighting, line numbers, and `n` / `N` navigation between diff sections; also used for `git add -p`; `zdiff3` merge conflict style |
-| Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
+| Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers; vercel, wrangler (Cloudflare) and codex on personal VMs, yarn on work VMs |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode, Antigravity CLI (`agy`) |
 | Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), chrome-devtools MCP for Claude Code (its own Chrome: headed through WSLg on WSL, headless on VMs), Playwright system deps (browsers stay per-project) |
-| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below), [Executor](https://executor.sh) (unified MCP gateway on personal VMs; see below); toggle with `EXTRAS` |
+| Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below), [Executor](https://executor.sh) (unified MCP gateway on personal VMs; see below) |
 | Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
 
-Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker, Claude Code, Codex, opencode.
+That's the personal profile. The runtimes, opencode, tmux and the extras are optional
+tools, and work VMs get fewer of them (see **Profiles** below).
+
+Already in the exe.dev base image and skipped automatically: Go, gh, neovim, uv, docker,
+Claude Code, Codex, opencode. They're on every VM, whichever tools are picked.
 
 ## Use it
 
@@ -30,11 +34,13 @@ New VMs then clone this repo and run `install.sh` on first boot. Follow along
 on the VM with `tail -f ~/dotfiles-bootstrap.log`. One VM only:
 `ssh exe.dev new --setup-script /dev/stdin < bootstrap.sh`.
 
-**Work VMs** use the `work` Claude profile (see below):
+**Work VMs** use the `work` profile (see below):
 
 ```sh
 sed '2i CLAUDE_PROFILE=work' bootstrap.sh | ssh exe.dev new --setup-script /dev/stdin
 ```
+
+Another tool set for one VM goes in the same way, e.g. `sed '2i TOOLS="go php bat"'`.
 
 **Any machine, by hand:**
 
@@ -45,13 +51,14 @@ bash ~/.dotfiles/install.sh
 
 Re-running is safe: installed tools are skipped and dotfiles re-linked. Individual
 download failures don't stop the run; they're listed at the end, so just re-run.
-Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="bat"` (or `""`),
-`CLAUDE_PROFILE=work`, `TAILSCALE=1` or `0` (default `auto`).
-On WSL it refuses to run unless `ALLOW_WSL=1`, since it installs the full toolset and WSL
-distros are kept to a subset by hand (see **WSL** below).
+Options: `CLAUDE_PROFILE=work`, `TOOLS="go php"` (or `""`; see **Profiles**),
+`NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `TAILSCALE=1` or `0`
+(default `auto`).
+On WSL it refuses to run unless `ALLOW_WSL=1`, since it installs the profile's whole tool
+set and WSL distros are kept to a subset by hand (see **WSL** below).
 
-**After the first boot**, log in once per VM: `claude`, `opencode`, `agy`, and (on personal
-VMs) `executor login`. Pair T3 Code with each device: `t3 pair --tailscale` (one-time link,
+**After the first boot**, log in once per VM: `claude`, `opencode` (if you use it), `agy`,
+and (on personal VMs) `executor login`. Pair T3 Code with each device: `t3 pair --tailscale` (one-time link,
 expires in 5 minutes).
 
 **Tailscale** goes through exe.dev's `tailscale-wif` integration (workload identity
@@ -91,7 +98,7 @@ from starting.
 
 **Executor** ([executor.sh](https://executor.sh)) exposes personal connectors through a
 single stdio MCP (`executor mcp`), installed and wired up on **personal VMs only**
-(skipped when `CLAUDE_PROFILE=work` or `executor` is omitted from `EXTRAS`). One
+(never on `CLAUDE_PROFILE=work`, and skipped when `executor` is left out of `TOOLS`). One
 `executor login` per VM authenticates all four agents: Claude Code (`~/.claude.json`),
 Codex (`~/.codex/config.toml`), opencode (`~/.config/opencode/opencode.jsonc`), and
 Antigravity (`~/.gemini/config/mcp_config.json`). Because T3 Code runs Antigravity ACP
@@ -177,20 +184,43 @@ Per-machine tweaks that shouldn't be shared go in untracked files:
 A yellow `⚙ N` in the prompt means `~/.dotfiles` has N uncommitted changes, often from a
 tool writing to a linked file (e.g. `/model` or `/plugin` editing `settings.json`).
 
-### Claude profiles: personal vs work
+### Profiles: personal vs work
 
 `install.sh` takes `CLAUDE_PROFILE=personal` (default) or `work` and remembers it in
-`~/.config/dotfiles/profile`, so plain re-runs keep the VM's profile.
+`~/.config/dotfiles/profile`, so plain re-runs keep the VM's profile. The profile picks
+the Claude setup and the default tool set.
+
+**Tools.** The shell setup, Node with its core globals, Claude Code, `agy`, the browser
+pieces and the dotfiles are always installed. The rest are optional tools, named in `TOOLS`:
+
+| Profile | Default `TOOLS` |
+| --- | --- |
+| personal | `bun go php rust opencode tmux bat lsd herdr hc turso t3 executor` (all of them) |
+| work | `go php bat lsd herdr hc` |
+
+`go` brings gopls, staticcheck and goose; `php` brings Composer, the Laravel installer and
+intelephense. Pass `TOOLS="go php bat"` to pick them yourself (`TOOLS=""` for none). The
+list is remembered in `~/.config/dotfiles/tools`, so plain re-runs keep it; switching the
+profile goes back to the new profile's default. `install.sh` never uninstalls, so leaving a
+tool out only stops it from being installed. `executor` is refused on work VMs.
+
+Package lists follow the same choices. A line in `packages/node-globals.txt` or
+`packages/skills.txt` that ends in `only:<profile>` or `only:<tool>` applies only to that
+profile, or when that tool is in `TOOLS`: `wrangler wrangler only:personal`,
+`intelephense intelephense only:php`. That's how work VMs get yarn but not vercel,
+wrangler, codex, or the Cloudflare and Vercel skill sets.
+
+**Claude.**
 
 - **personal**: everything in `claude/` is linked, as described above.
 - **work**: `claude/` is linked **except** `settings.json` and `CLAUDE.md`.
-  `~/.claude/settings.json` is a real file, seeded once from `claude-work/settings.json`,
-  then edited on the VM and never committed. Work settings collect org details (auto mode
-  writes internal hosts, secret names and branches into them), and this repo is public.
-  There's no user-level `CLAUDE.md`, since work repos carry their own. Connectors
-  (Atlassian, Slack, ...) come with the work account login, and internal MCPs from each
-  repo's `.mcp.json`. Executor is also skipped on work VMs (neither installed nor wired
-  into any agent).
+  `~/.claude/settings.json` is a real file, seeded once from `claude-work/settings.json`
+  (TypeScript, Go and PHP LSP plugins), then edited on the VM and never committed. Work
+  settings collect org details (auto mode writes internal hosts, secret names and branches
+  into them), and this repo is public. There's no user-level `CLAUDE.md`, since work repos
+  carry their own. Connectors (Atlassian, Slack, ...) come with the work account login,
+  and internal MCPs from each repo's `.mcp.json`. Executor is never installed or wired
+  into any agent.
 
 The pre-commit hook rejects staged lines adding an `autoMode` key, plus any regexes (one
 per line) in the untracked `~/.config/dotfiles/blocked-patterns`. Put employer-specific
@@ -206,7 +236,8 @@ Skills are user-level, shared by every agent and every repo. Codex and opencode 
   one copy in `~/.agents/skills` and links it into `~/.claude/skills`.
   A line is either a whole repo (`cloudflare/skills`), one skill from it
   (`anthropics/skills frontend-design`), or one skill under a new name
-  (`some/repo research some-research`), for when two sources ship the same name.
+  (`some/repo research some-research`), for when two sources ship the same name. Any of
+  them can end in an `only:` tag (see **Profiles**).
   - Update: `skills update -g` (`skills check -g` to see what's behind). This updates
     installed skills only; to pick up skills a whole repo added since, run
     `skills add <source> -g -y -a claude-code codex`.
@@ -228,10 +259,11 @@ Skills are user-level, shared by every agent and every repo. Codex and opencode 
   at least a day ago; current pnpm does the same by default (`minimumReleaseAge`). Most
   malicious releases are pulled within hours. For something released today, override once:
   `npm install --min-release-age=0 <pkg>`.
-- **Turning a plugin off on one VM** (e.g. php-lsp on work VMs): do it at
-  project scope, in the repo's `.claude/settings.local.json`:
-  `{"enabledPlugins": {"php-lsp@claude-plugins-official": false}}`.
-  Disabling at user scope would edit the symlinked `settings.json` in this repo.
+- **Turning a plugin off on one VM** (e.g. rust-analyzer-lsp on a personal VM without
+  `rust`): do it at project scope, in the repo's `.claude/settings.local.json`:
+  `{"enabledPlugins": {"rust-analyzer-lsp@claude-plugins-official": false}}`.
+  Disabling at user scope would edit the symlinked `settings.json` in this repo. (Work VMs
+  can just edit `~/.claude/settings.json`, which isn't linked.)
 - **herdr integrations** (agent state in the sidebar) are wired up by `install.sh`, not
   by running `herdr integration install` yourself: their config entries are tracked here
   (the hook in `claude/settings.json`, the plugin in opencode's `cli.json`), and herdr's

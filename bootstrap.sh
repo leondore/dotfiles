@@ -11,6 +11,10 @@ VM_USER="${DOTFILES_USER:-exedev}"
 CLAUDE_PROFILE="${CLAUDE_PROFILE:-personal}"
 # "auto" joins the tailnet when the tailscale-wif integration is attached; "1"/"0" force it.
 TAILSCALE="${TAILSCALE:-auto}"
+# Optional tools (TOOLS in install.sh) are passed on only when set here, e.g.
+# TOOLS="go php bat"; left unset, install.sh uses the profile's default.
+ARGS=("$REPO" "$CLAUDE_PROFILE" "$TAILSCALE")
+[ -z "${TOOLS+x}" ] || ARGS+=("$TOOLS")
 
 run() {
   set -euo pipefail
@@ -33,13 +37,14 @@ run() {
     fi
     grep -qs '^export GH_HOST=' "$HOME/.zshenv.local" ||
       echo 'export GH_HOST=github.int.exe.xyz  # exe.dev GitHub integration (bootstrap.sh)' >> "$HOME/.zshenv.local"
+    if [ $# -ge 4 ]; then export TOOLS="$4"; fi
     CLAUDE_PROFILE="$2" TAILSCALE="$3" bash "$HOME/.dotfiles/install.sh"
     echo "[$(date -Is)] dotfiles bootstrap finished"
   } 2>&1 | tee -a "$HOME/dotfiles-bootstrap.log"
 }
 
 if [ "$(id -u)" -eq 0 ]; then
-  sudo -u "$VM_USER" -H bash -c "$(declare -f run); run '$REPO' '$CLAUDE_PROFILE' '$TAILSCALE'"
+  sudo -u "$VM_USER" -H bash -c "$(declare -f run); run $(printf '%q ' "${ARGS[@]}")"
 else
-  run "$REPO" "$CLAUDE_PROFILE" "$TAILSCALE"
+  run "${ARGS[@]}"
 fi
