@@ -1,0 +1,5 @@
+#!/bin/sh
+# Newest Chrome for Testing installed by agent-browser (`agent-browser install` updates it).
+chrome="$(ls -d "$HOME"/.agent-browser/browsers/chrome-*/ 2>/dev/null | sort -V | tail -1)chrome"
+[ -x "$chrome" ] || { echo "no agent-browser Chrome; run: agent-browser install" >&2; exit 1; }
+exec "$chrome" "$@"

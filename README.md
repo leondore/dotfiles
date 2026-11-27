@@ -12,7 +12,7 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers, vercel, wrangler (Cloudflare), codex |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
 | AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode, Antigravity CLI (`agy`) |
-| Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), Playwright system deps (browsers stay per-project) |
+| Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), chrome-devtools MCP for Claude Code (its own Chrome: headed through WSLg on WSL, headless on VMs), Playwright system deps (browsers stay per-project) |
 | Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below), [Executor](https://executor.sh) (unified MCP gateway on personal VMs; see below); toggle with `EXTRAS` |
 | Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
 
@@ -47,8 +47,8 @@ Re-running is safe: installed tools are skipped and dotfiles re-linked. Individu
 download failures don't stop the run; they're listed at the end, so just re-run.
 Options: `NODE_VERSION=24` (instead of latest LTS), `PHP_VERSION=8.4`, `EXTRAS="bat"` (or `""`),
 `CLAUDE_PROFILE=work`, `TAILSCALE=1` or `0` (default `auto`).
-On WSL it refuses to run unless `ALLOW_WSL=1`, since it replaces the Volta-based
-`.zshrc` and the `cc-use` `~/.claude` symlink there.
+On WSL it refuses to run unless `ALLOW_WSL=1`, since it installs the full toolset and WSL
+distros are kept to a subset by hand (see **WSL** below).
 
 **After the first boot**, log in once per VM: `claude`, `opencode`, `agy`, and (on personal
 VMs) `executor login`. Pair T3 Code with each device: `t3 pair --tailscale` (one-time link,
@@ -127,6 +127,31 @@ refuse to run until it's switched (`git remote set-url origin <proxy url>`). The
 covers repo commands (`gh pr`, `gh issue`, `gh repo`), not arbitrary `gh api` calls; for
 those, `gh auth login` with a fine-grained token.
 
+**WSL** distros don't run `install.sh`. The repo is cloned (or symlinked) at `~/.dotfiles`,
+the files a distro uses are symlinked by hand, and only the tools it needs are installed.
+Distro-specific settings go in `~/.zshenv.local`.
+
+- **GitHub:** there's no exe.dev proxy, so `gh` logs in with a fine-grained token per distro,
+  limited to the repos that distro needs, and git goes over HTTPS through `gh`.
+  `gh auth setup-git` would write to the linked `~/.gitconfig` (this repo), so the helper
+  goes in `~/.gitconfig.local`, along with a rewrite that keeps `git@github.com:` remotes
+  working:
+
+  ```ini
+  [credential "https://github.com"]
+      helper =
+      helper = !/usr/bin/gh auth git-credential
+  [url "https://github.com/"]
+      insteadOf = git@github.com:
+      insteadOf = ssh://git@github.com/
+  ```
+
+- **Headed browsers:** WSLg shows Linux windows on the Windows desktop. `.zshenv` sets
+  `DISPLAY` for SSH and T3 sessions, and the chrome-devtools MCP opens its own Chrome there
+  (`~/.local/bin/agent-chrome`). Don't point it at a Windows browser's debugging port:
+  anything in WSL can reach Windows `localhost`, so that would hand your logged-in browser
+  to every process in the distro.
+
 ## Layout
 
 ```
@@ -199,6 +224,10 @@ Skills are user-level, shared by every agent and every repo. Codex and opencode 
 - **fnm vs Volta:** fnm installs globals per Node version. To keep the Volta feel,
   npm's global prefix is set to `~/.local/share/npm-global`, so global CLIs survive
   switching versions. Change the default with `fnm default <v>`.
+- **Package age:** npm is set to `min-release-age=1`, so it only installs versions published
+  at least a day ago; current pnpm does the same by default (`minimumReleaseAge`). Most
+  malicious releases are pulled within hours. For something released today, override once:
+  `npm install --min-release-age=0 <pkg>`.
 - **Turning a plugin off on one VM** (e.g. php-lsp on work VMs): do it at
   project scope, in the repo's `.claude/settings.local.json`:
   `{"enabledPlugins": {"php-lsp@claude-plugins-official": false}}`.

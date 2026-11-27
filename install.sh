@@ -53,11 +53,12 @@ if [ "$(id -u)" -eq 0 ]; then
   exit 1
 fi
 
-# On WSL this would replace the current Volta-based .zshrc and the cc-use ~/.claude
-# symlink, so it only runs there when explicitly asked to.
+# This sets up the full toolset for exe.dev VMs. WSL distros are kept to a subset by hand
+# (see "WSL" in the README), and a run there would install everything again, so it only
+# runs on WSL when explicitly asked to.
 if grep -qi microsoft /proc/version 2>/dev/null && [ "${ALLOW_WSL:-}" != 1 ]; then
-  echo "WSL detected. This replaces ~/.zshrc and turns ~/.claude into a real dir (old ones get backed up)." >&2
-  echo "Re-run with ALLOW_WSL=1 once you're ready to switch WSL over too." >&2
+  echo "WSL detected. This installs every tool in the README (runtimes, CLIs, extras) and links all dotfiles." >&2
+  echo "Re-run with ALLOW_WSL=1 if that's what you want on this distro." >&2
   exit 1
 fi
 
@@ -147,7 +148,10 @@ setup_node() {
   echo "    node $(node --version)" &&
   # Keep npm globals in one fixed prefix so they survive switching Node versions
   # (this is what Volta did for you implicitly).
-  npm config set prefix "$NPM_GLOBAL"
+  npm config set prefix "$NPM_GLOBAL" &&
+  # Only install versions published at least a day ago: most malicious releases are
+  # pulled within hours. pnpm does the same by default. Needs npm 11+.
+  { npm config set min-release-age 1 2>/dev/null || echo "    npm $(npm --version) has no min-release-age, skipped"; }
 }
 if has fnm && try setup_node && has npm; then
   log "npm globals"
@@ -233,6 +237,23 @@ fi
 if has pnpm && [ ! -f "$HOME/.cache/.playwright-deps-done" ]; then
   log "Playwright system deps"
   try bash -c 'pnpm dlx playwright install-deps chromium && mkdir -p ~/.cache && touch ~/.cache/.playwright-deps-done'
+fi
+# chrome-devtools MCP for Claude Code. It starts its own Chrome (agent-browser's Chrome for
+# Testing, through ~/.local/bin/agent-chrome) with a profile of its own, never a desktop
+# browser through a debugging port: headed where there's a display (WSLg), headless elsewhere.
+setup_chrome_devtools_mcp() {
+  local mode=()
+  [ -S /tmp/.X11-unix/X0 ] || mode=(--headless)
+  claude mcp add --scope user chrome-devtools -- npx -y chrome-devtools-mcp@latest \
+    --executablePath "$HOME/.local/bin/agent-chrome" "${mode[@]}"
+}
+if has claude && has npx; then
+  log "chrome-devtools MCP"
+  if jq -e '.mcpServers["chrome-devtools"]' "$HOME/.claude.json" >/dev/null 2>&1; then
+    skip "chrome-devtools MCP"
+  else
+    try setup_chrome_devtools_mcp
+  fi
 fi
 
 # --- Extras ------------------------------------------------------------------------------

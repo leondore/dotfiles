@@ -36,5 +36,11 @@ if [[ -z "$DBUS_SESSION_BUS_ADDRESS" && -S "$XDG_RUNTIME_DIR/bus" ]]; then
   export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
 fi
 
+# WSLg: SSH and T3 sessions don't inherit DISPLAY, so headed browsers (chrome-devtools
+# MCP, agent-browser --headed) couldn't open a window. Point them at WSLg's X server.
+if [[ -z "$DISPLAY" && -S /tmp/.X11-unix/X0 ]]; then
+  export DISPLAY=:0
+fi
+
 # Machine-specific overrides (not tracked)
 [[ -f "$HOME/.zshenv.local" ]] && source "$HOME/.zshenv.local"
