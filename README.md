@@ -11,8 +11,8 @@ My Linux dev environment, reproducible in one command. Built for exe.dev VMs
 | Git | delta as the diff pager, with Dracula syntax highlighting, line numbers, and `n` / `N` navigation between diff sections; also used for `git add -p`; `zdiff3` merge conflict style |
 | Node | fnm, latest LTS as default, auto-switch on `.nvmrc`/`.node-version`; pnpm, TypeScript, TS/Vue language servers; vercel, wrangler (Cloudflare) and codex on personal VMs, yarn on work VMs |
 | Other runtimes | bun, Go (+ gopls, staticcheck, goose), Rust via rustup (+ rust-analyzer, clippy, rustfmt), PHP + Composer + Laravel installer via [php.new](https://php.new) (+ intelephense) |
-| AI tools | Agent skills for Claude Code, Codex and opencode via the [skills CLI](https://github.com/vercel-labs/skills) (see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode, Antigravity CLI (`agy`) |
-| Browsers | agent-browser (+ Chrome for Testing, discovery skill for every agent), chrome-devtools MCP for Claude Code (its own Chrome: headed through WSLg on WSL, headless on VMs), Playwright system deps (browsers stay per-project) |
+| AI tools | Agent skills for Claude Code, Codex, opencode and Antigravity (`sync-skill-packs`, [skills CLI](https://github.com/vercel-labs/skills), `pick-skills`; see below); Claude Code (with my CLAUDE.md and settings; plugins: typescript/gopls/rust-analyzer/php LSPs; ccstatusline with my config), opencode, Antigravity CLI (`agy`) |
+| Browsers | agent-browser (+ Chrome for Testing; install its skill per project with `pick-skills`), chrome-devtools MCP for Claude Code (its own Chrome: headed through WSLg on WSL, headless on VMs), Playwright system deps (browsers stay per-project) |
 | Extras | turso, bat, lsd, [herdr](https://herdr.dev) (agent-aware multiplexer), herdr-core (`hc`, for the herdr phone app; see below), [T3 Code](https://t3.codes) (as a background service; see below), [Executor](https://executor.sh) (unified MCP gateway on personal VMs; see below) |
 | Network | joins my tailnet via exe.dev's Tailscale integration, when it's attached to the VM, with Tailscale SSH on (see below) |
 
@@ -167,11 +167,12 @@ bootstrap.sh            exe.dev setup script (clone + install.sh)
 home/                   mirrored into $HOME          (~/.zshrc, ~/.config/starship.toml, ...)
 claude/                 mirrored into ~/.claude       (settings.json, CLAUDE.md)
 claude-work/            seed for ~/.claude/settings.json on work VMs (copied, not linked)
-agents/skills/          my own skills, mirrored into ~/.agents/skills and ~/.claude/skills
+agents/skills/          my own skills, mirrored into ~/.agents/skills, ~/.claude/skills and ~/.gemini/config/skills
 githooks/               pre-commit guard for this repo (set as core.hooksPath by install.sh)
 packages/node-globals.txt   npm globals
 packages/go-tools.txt       go install targets
-packages/skills.txt         third-party agent skills (skills CLI)
+packages/skills.txt         global third-party skill packs (sync-skill-packs) and single skills (skills CLI)
+packages/optional-skills.txt curated optional skills picked on demand with `pick-skills`
 ```
 
 Files are **symlinked**, so editing `~/.zshrc` on a VM edits the repo; commit and push
@@ -228,23 +229,31 @@ names there instead of in this repo. Bypass a false positive with `git commit --
 
 ### Agent skills
 
-Skills are user-level, shared by every agent and every repo. Codex and opencode read
-`~/.agents/skills`; Claude Code only reads `~/.claude/skills`, so each skill lands in both.
+Global skills land in `~/.agents/skills` (Codex, opencode) and are symlinked into
+`~/.claude/skills` (Claude Code, Grok Build) and `~/.gemini/config/skills` (Antigravity CLI,
+plus T3 Code's isolated Antigravity via its `config/skills` symlink).
 
-- **Third-party skills** are listed in `packages/skills.txt` and installed by
-  `install.sh` with the [skills CLI](https://github.com/vercel-labs/skills), which keeps
-  one copy in `~/.agents/skills` and links it into `~/.claude/skills`.
-  A line is either a whole repo (`cloudflare/skills`), one skill from it
-  (`anthropics/skills frontend-design`), or one skill under a new name
-  (`some/repo research some-research`), for when two sources ship the same name. Any of
-  them can end in an `only:` tag (see **Profiles**).
-  - Update: `skills update -g` (`skills check -g` to see what's behind). This updates
-    installed skills only; to pick up skills a whole repo added since, run
-    `skills add <source> -g -y -a claude-code codex`.
-  - Add: a line in `skills.txt`, then re-run `install.sh`.
-  - Remove: delete the line and run `skills remove -g <name>`; `install.sh` never
-    uninstalls. To drop one skill of a whole repo on one VM, just `skills remove -g` it:
-    a whole repo isn't reinstalled while any of its skills are.
+- **Prefixed global packs** (`prefix:<pfx>` lines in `packages/skills.txt`, e.g.
+  `mattpocock/skills prefix:mp- plugin` and `emilkowalski/skills prefix:ek- only:personal`)
+  are synced by `sync-skill-packs`: it clones each pack, prefixes folder names and
+  `SKILL.md` frontmatter `name`, rewrites intra-pack sibling references (so packs that both
+  ship a `prototype` skill don't collide and their cross-references keep working), and
+  tracks installed skills in `~/.agents/.skill-packs.json`.
+  - Update: `sync-skill-packs` (or `sync-skill-packs --diff` to inspect every rewritten line
+    before updating; `--pack mp` for one pack). `install.sh` runs `sync-skill-packs --ensure`
+    so re-runs skip already-installed packs and only repair missing symlinks.
+- **Plain global skills** (non-`prefix:` lines in `packages/skills.txt`, e.g.
+  `anthropics/skills frontend-design`) are installed by `install.sh` with the
+  [skills CLI](https://github.com/vercel-labs/skills) (`-a claude-code codex antigravity-cli`).
+  A line is either a whole repo, one skill (`owner/repo skill`), or one skill renamed
+  (`owner/repo skill new-name`), optionally ending in an `only:` tag (see **Profiles**).
+  - Update: `skills update -g` (`skills check -g` to see what's behind).
+  - Remove: delete the line and run `skills remove -g <name>`; `install.sh` never uninstalls.
+- **Optional per-project / per-VM skills** live in `packages/optional-skills.txt`
+  (Cloudflare, Vercel, `agent-browser`, etc.). Run `pick-skills` in a project directory to
+  `fzf`-select what you need and hand off to `skills add` (project-local by default into
+  `./.agents/skills` and `./.claude/skills`; pass `-g` for global on a single-project VM,
+  or `--all` to install every skill in selected `*` packs without prompting).
 - **My own skills** go in `agents/skills/<name>/SKILL.md` and are symlinked like the other
   dotfiles, so editing them on a VM edits the repo. Re-run `install.sh` after adding one.
 

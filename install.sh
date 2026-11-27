@@ -482,40 +482,83 @@ if [ "$CLAUDE_PROFILE" = work ]; then
 else
   link_tree "$DOTFILES/claude" "$HOME/.claude"
 fi
-# Own skills: agents/skills/<name>/ goes to ~/.agents/skills (Codex, OpenCode) and
-# ~/.claude/skills (Claude Code doesn't read ~/.agents).
+# Own skills: agents/skills/<name>/ goes to ~/.agents/skills (Codex, opencode),
+# ~/.claude/skills (Claude Code, Grok Build) and ~/.gemini/config/skills (Antigravity).
 if [ -d "$DOTFILES/agents/skills" ]; then
   link_tree "$DOTFILES/agents/skills" "$HOME/.agents/skills"
   link_tree "$DOTFILES/agents/skills" "$HOME/.claude/skills"
+  link_tree "$DOTFILES/agents/skills" "$HOME/.gemini/config/skills"
 fi
 
 # Pre-commit guard against committing work config to this public repo.
 git -C "$DOTFILES" config core.hooksPath githooks
 
-# Third-party skills from packages/skills.txt, via the skills CLI. It keeps one copy in
-# ~/.agents/skills and links it into ~/.claude/skills. Links left dangling by skills
-# removed from this repo are cleared first, so the CLI can install over them. A whole-repo
-# line is skipped once the CLI's lock has any skill from that repo (so a skill removed
-# with `skills remove -g` stays removed); named skills are checked one by one and
-# collected per source, so each source is fetched once. A renamed skill needs its own
-# call (the CLI's --rename takes one skill). Everything is local to the function, since
-# install.sh already uses names like `missing` at the top level.
+# T3 Code runs Antigravity ACP with an isolated GEMINI_HOME
+# (~/.t3/userdata/providers/antigravity/<sha256(instanceId)>) and does not symlink
+# config/skills or config/mcp_config.json, so mirror them from ~/.gemini/config/.
+link_t3_antigravity_config() {
+  local name="$1" label="${2:-$1}"
+  local src="$HOME/.gemini/config/$name"
+  local base="$HOME/.t3/userdata/providers/antigravity"
+  # sha256("antigravity"): T3 Code's default Antigravity provider instance directory.
+  local default_dir="$base/ac0a3dfd6dddb20962cecff6ee5fe65e19d3923be20e52c5ab52ff877f7e4c32/config"
+  local dirs=() dir dst seen=0
+  for dir in "$base"/*/config; do
+    [ -d "$dir" ] || continue
+    dirs+=("$dir")
+    [ "$dir" = "$default_dir" ] && seen=1
+  done
+  if [ "$seen" -eq 0 ] && { want t3 || has t3; }; then
+    mkdir -p "$default_dir"
+    dirs+=("$default_dir")
+  fi
+  for dir in "${dirs[@]}"; do
+    dst="$dir/$name"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
+      skip "$label (T3 Antigravity: ${dir#"$base"/})"
+      continue
+    fi
+    if [ -d "$dst" ] && [ ! -L "$dst" ] && [ -z "$(ls -A "$dst" 2>/dev/null)" ]; then
+      rmdir "$dst"
+    elif [ -e "$dst" ] || [ -L "$dst" ]; then
+      backup "$dst"
+    fi
+    ln -s "$src" "$dst"
+    echo "    linked ~/${dst#"$HOME"/} -> ~/.gemini/config/$name"
+  done
+}
+
+# Third-party global skills from packages/skills.txt:
+# - Lines with `prefix:<pfx>` are cloned, prefixed, cross-reference-rewritten, and linked
+#   by sync-skill-packs (into ~/.agents/skills, ~/.claude/skills, ~/.gemini/config/skills).
+# - Plain lines go through the skills CLI with the same three targets.
+# Links left dangling by skills removed from this repo are cleared first, so installs can
+# overwrite them. A whole-repo line is skipped once the CLI's lock has any skill from that
+# repo (so a skill removed with `skills remove -g` stays removed); named skills are checked
+# one by one and collected per source, so each source is fetched once. A renamed skill
+# needs its own call (the CLI's --rename takes one skill).
+SKILL_AGENTS=(claude-code codex antigravity-cli)
 install_skills() {
   local -A missing=()
-  local sources=() renames=() names=() have_sources src skill as name key r calls
-  find "$HOME/.claude/skills" "$HOME/.agents/skills" -maxdepth 2 -xtype l -delete 2>/dev/null || true
+  local sources=() renames=() names=() have_sources line src skill as name key r calls
+  find "$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills" \
+    -maxdepth 2 -xtype l -delete 2>/dev/null || true
   have_sources=" $(skills ls -g --json < /dev/null 2>/dev/null | node -e '
     let s = ""; process.stdin.on("data", d => s += d).on("end", () => {
       try { console.log([...new Set(JSON.parse(s).map(e => e.source))].join(" ")); } catch {}
     });' || true) "
-  while read -r src skill as _; do
+  while read -r line; do
+    [[ " $line " == *" prefix:"* ]] && continue
+    read -r src skill as _ <<< "$line"
     [[ -z "${src:-}" || "$src" == \#* ]] && continue
     [[ -v "missing[$src]" ]] || { sources+=("$src"); missing[$src]=""; }
     name="${as:-${skill:-}}"
     if [ -z "${skill:-}" ]; then
       key="${src#https://github.com/}"; key="${key%.git}"
       [[ "$have_sources" == *" $key "* ]] || missing[$src]="*"
-    elif [ -e "$HOME/.agents/skills/$name/SKILL.md" ] && [ -e "$HOME/.claude/skills/$name/SKILL.md" ]; then
+    elif [ -e "$HOME/.agents/skills/$name/SKILL.md" ] &&
+         [ -e "$HOME/.claude/skills/$name/SKILL.md" ] &&
+         [ -e "$HOME/.gemini/config/skills/$name/SKILL.md" ]; then
       continue
     elif [ -n "${as:-}" ]; then
       renames+=("$src $skill $as")
@@ -528,21 +571,29 @@ install_skills() {
     [ -n "${missing[$src]}" ] || continue
     calls=$((calls + 1))
     if [ "${missing[$src]}" = "*" ]; then
-      try skills add "$src" -g -a claude-code codex -y < /dev/null
+      try skills add "$src" -g -a "${SKILL_AGENTS[@]}" -y < /dev/null
     else
       read -ra names <<< "${missing[$src]}"
-      try skills add "$src" --skill "${names[@]}" -g -a claude-code codex -y < /dev/null
+      try skills add "$src" --skill "${names[@]}" -g -a "${SKILL_AGENTS[@]}" -y < /dev/null
     fi
   done
   for r in "${renames[@]}"; do
     read -r src skill as <<< "$r"
-    try skills add "$src" --skill "$skill" --rename "$as" -g -a claude-code codex -y < /dev/null
+    try skills add "$src" --skill "$skill" --rename "$as" -g -a "${SKILL_AGENTS[@]}" -y < /dev/null
   done
-  [ "$calls" -gt 0 ] || skip "every listed skill"
+  [ "$calls" -gt 0 ] || skip "every listed skills-CLI skill"
 }
-if has skills; then
+if has node || has skills; then
   log "Agent skills"
-  install_skills
+  mkdir -p "$HOME/.gemini/config/skills"
+  if has node; then
+    try env CLAUDE_PROFILE="$CLAUDE_PROFILE" TOOLS="$TOOLS" DOTFILES="$DOTFILES" \
+      "$DOTFILES/home/.local/bin/sync-skill-packs" --ensure
+  fi
+  if has skills; then
+    install_skills
+  fi
+  try link_t3_antigravity_config skills "Antigravity skills"
 fi
 
 # herdr agent-state integrations. Their config entries are tracked in this repo
@@ -567,35 +618,8 @@ fi
 
 # Executor MCP wiring (personal VMs only). OpenCode (~/.config/opencode/opencode.jsonc) and
 # standalone Antigravity (~/.gemini/config/mcp_config.json) come from home/; Claude Code and
-# Codex keep state in untracked files so they're registered via CLI. T3 Code isolates
-# Antigravity's GEMINI_HOME to ~/.t3/userdata/providers/antigravity/<sha256(instanceId)> and
-# does not symlink config/mcp_config.json, so link it to ~/.gemini/config/mcp_config.json.
-link_t3_antigravity_mcp() {
-  local src="$HOME/.gemini/config/mcp_config.json"
-  local base="$HOME/.t3/userdata/providers/antigravity"
-  # sha256("antigravity"): T3 Code's default Antigravity provider instance directory.
-  local default_dir="$base/ac0a3dfd6dddb20962cecff6ee5fe65e19d3923be20e52c5ab52ff877f7e4c32/config"
-  local dirs=() dir dst seen=0
-  for dir in "$base"/*/config; do
-    [ -d "$dir" ] || continue
-    dirs+=("$dir")
-    [ "$dir" = "$default_dir" ] && seen=1
-  done
-  if [ "$seen" -eq 0 ] && { want t3 || has t3; }; then
-    mkdir -p "$default_dir"
-    dirs+=("$default_dir")
-  fi
-  for dir in "${dirs[@]}"; do
-    dst="$dir/mcp_config.json"
-    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
-      skip "executor MCP (T3 Antigravity: ${dir#"$base"/})"
-      continue
-    fi
-    if [ -s "$dst" ] || [ -L "$dst" ]; then backup "$dst"; else rm -f "$dst"; fi
-    ln -s "$src" "$dst"
-    echo "    linked ~/${dst#"$HOME"/} -> ~/.gemini/config/mcp_config.json"
-  done
-}
+# Codex keep state in untracked files so they're registered via CLI. T3 Code's isolated
+# Antigravity gets mcp_config.json via link_t3_antigravity_config above.
 if want executor && has executor; then
   log "Executor MCP"
   if has claude; then
@@ -614,7 +638,7 @@ if want executor && has executor; then
     fi
   fi
   if [ -e "$HOME/.gemini/config/mcp_config.json" ]; then
-    try link_t3_antigravity_mcp
+    try link_t3_antigravity_config mcp_config.json "executor MCP"
   fi
 fi
 

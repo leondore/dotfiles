@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# Pick optional skills from packages/optional-skills.txt with fzf and install them
+# via the skills CLI (project-local by default, or global with -g).
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage: pick-skills [options]
+
+Interactively select optional skills/packs from packages/optional-skills.txt
+and install them via the skills CLI.
+
+Options:
+  -g, --global   Install globally (~/.agents/skills, ~/.claude/skills, ~/.gemini/config/skills)
+                 instead of project-local (./.agents/skills, ./.claude/skills)
+  --all          For whole-repo (*) entries, install every skill without prompting
+  -l, --list     List the catalog and exit
+  -h, --help     Show this help
+EOF
+}
+
+GLOBAL=0
+INSTALL_ALL=0
+LIST_ONLY=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -g|--global) GLOBAL=1 ;;
+    --all)       INSTALL_ALL=1 ;;
+    -l|--list)   LIST_ONLY=1 ;;
+    -h|--help)   usage; exit 0 ;;
+    *) echo "pick-skills: unknown option '$1' (use --help)" >&2; exit 1 ;;
+  esac
+  shift
+done
+
+SELF="$(readlink -f "$0")"
+CANDIDATE="$(cd "$(dirname "$SELF")/../../.." && pwd)"
+if [ -n "${DOTFILES:-}" ]; then
+  CATALOG="$DOTFILES/packages/optional-skills.txt"
+elif [ -f "$CANDIDATE/packages/optional-skills.txt" ]; then
+  CATALOG="$CANDIDATE/packages/optional-skills.txt"
+else
+  CATALOG="$HOME/.dotfiles/packages/optional-skills.txt"
+fi
+
+if [ ! -f "$CATALOG" ]; then
+  echo "pick-skills: catalog not found at $CATALOG" >&2
+  exit 1
+fi
+
+ENTRIES=()
+while IFS= read -r raw || [ -n "$raw" ]; do
+  body="${raw%%#*}"
+  desc=""
+  [[ "$raw" == *"#"* ]] && desc="${raw#*#}"
+  desc="${desc#"${desc%%[![:space:]]*}"}"
+  read -r src skill _ <<< "$body"
+  [ -n "${src:-}" ] && [ -n "${skill:-}" ] || continue
+  label="$src"
+  [ "$skill" != "*" ] && label="$src ($skill)"
+  ENTRIES+=("$(printf '%s\t%s\t%-40s  %s' "$src" "$skill" "$label" "$desc")")
+done < "$CATALOG"
+
+if [ ${#ENTRIES[@]} -eq 0 ]; then
+  echo "pick-skills: no entries in $CATALOG" >&2
+  exit 1
+fi
+
+if [ "$LIST_ONLY" -eq 1 ]; then
+  for row in "${ENTRIES[@]}"; do
+    printf '%s\n' "${row#*$'\t'*$'\t'}"
+  done
+  exit 0
+fi
+
+command -v fzf >/dev/null 2>&1 || { echo "pick-skills: fzf is required" >&2; exit 1; }
+command -v skills >/dev/null 2>&1 || { echo "pick-skills: skills CLI is required" >&2; exit 1; }
+
+SCOPE_LABEL="project ($(pwd))"
+SCOPE_ARGS=()
+if [ "$GLOBAL" -eq 1 ]; then
+  SCOPE_LABEL="global"
+  SCOPE_ARGS=(-g)
+fi
+
+SELECTED="$(
+  printf '%s\n' "${ENTRIES[@]}" |
+    fzf --multi \
+        --delimiter=$'\t' \
+        --with-nth=3 \
+        --height=~50% \
+        --reverse \
+        --header="Select skills to install [$SCOPE_LABEL] (Tab to toggle, Enter to install)"
+)" || exit 0
+
+[ -n "$SELECTED" ] || exit 0
+
+AGENTS=(claude-code codex antigravity-cli)
+while IFS=$'\t' read -r src skill _; do
+  [ -n "$src" ] || continue
+  printf '\n\033[1;34m==>\033[0m %s (%s)\n' "$src" "$skill"
+  if [ "$skill" = "*" ]; then
+    if [ "$INSTALL_ALL" -eq 1 ]; then
+      skills add "$src" --skill '*' "${SCOPE_ARGS[@]}" -a "${AGENTS[@]}" -y
+    else
+      skills add "$src" "${SCOPE_ARGS[@]}" -a "${AGENTS[@]}"
+    fi
+  else
+    skills add "$src" --skill "$skill" "${SCOPE_ARGS[@]}" -a "${AGENTS[@]}" -y
+  fi
+done <<< "$SELECTED"

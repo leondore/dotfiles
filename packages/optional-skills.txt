@@ -1,0 +1,9 @@
+# Curated optional skills for `pick-skills` (project-local by default; `pick-skills -g` for global).
+#
+# Format (description after `#` is shown in fzf):
+#   <source> *         # description   (hands off to `skills add` to pick individual skills, or all with --all)
+#   <source> <skill>   # description   (installs that single skill directly)
+
+cloudflare/skills            *              # Cloudflare Workers, Wrangler, Durable Objects, Agents SDK
+vercel-labs/agent-skills     *              # React/Next.js best practices, composition, web perf, deploy
+vercel-labs/agent-browser    agent-browser  # Headless browser automation with agent-browser

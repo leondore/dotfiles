@@ -1,0 +1,576 @@
+#!/usr/bin/env node
+"use strict";
+
+// Sync prefixed third-party skill packs from packages/skills.txt.
+// Clones each pack, prefixes folder names and SKILL.md frontmatter `name`,
+// rewrites intra-pack sibling references, installs into ~/.agents/skills,
+// and symlinks into ~/.claude/skills and ~/.gemini/config/skills.
+
+const { execFileSync } = require("node:child_process");
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+
+const TEXT_EXTS = new Set([".md", ".yaml", ".yml", ".sh", ".txt"]);
+const PREFIX_RE = /^[a-z0-9][a-z0-9._-]*$/;
+
+function parseArgs(argv) {
+  const opts = {
+    ensure: false,
+    diff: false,
+    dryRun: false,
+    pack: null,
+    home: process.env.HOME || os.homedir(),
+    dotfiles: null,
+    help: false,
+  };
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a === "--ensure") opts.ensure = true;
+    else if (a === "--diff") opts.diff = true;
+    else if (a === "--dry-run") opts.dryRun = true;
+    else if (a === "--pack" && argv[i + 1]) opts.pack = argv[++i];
+    else if (a === "--home" && argv[i + 1]) opts.home = path.resolve(argv[++i]);
+    else if (a === "--dotfiles" && argv[i + 1]) opts.dotfiles = path.resolve(argv[++i]);
+    else if (a === "-h" || a === "--help") opts.help = true;
+    else {
+      console.error(`sync-skill-packs: unknown argument '${a}' (use --help)`);
+      process.exit(1);
+    }
+  }
+  return opts;
+}
+
+function usage() {
+  console.log(`Usage: sync-skill-packs [options]
+
+Sync prefixed skill packs listed in packages/skills.txt into ~/.agents/skills,
+symlinked to ~/.claude/skills and ~/.gemini/config/skills.
+
+Options:
+  --ensure           Only clone packs that aren't installed yet; repair missing symlinks
+  --diff             Fetch packs and print every rewritten line without modifying disk
+  --dry-run          Fetch packs and show what would change without modifying disk
+  --pack <prefix>    Only sync the pack with this prefix (e.g. mp- or mp)
+  --home <dir>       Override $HOME
+  --dotfiles <dir>   Override dotfiles repo root
+  -h, --help         Show this help`);
+}
+
+function resolveDotfiles(explicit, home) {
+  if (explicit) return explicit;
+  if (process.env.DOTFILES) return path.resolve(process.env.DOTFILES);
+  const self = fs.realpathSync(__filename);
+  const candidate = path.resolve(path.dirname(self), "../../..");
+  if (fs.existsSync(path.join(candidate, "packages/skills.txt"))) return candidate;
+  return path.join(home, ".dotfiles");
+}
+
+function readTrimmed(filePath) {
+  try {
+    return fs.readFileSync(filePath, "utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+function loadProfileAndTools(home) {
+  const profile =
+    process.env.CLAUDE_PROFILE ||
+    readTrimmed(path.join(home, ".config/dotfiles/profile")) ||
+    "personal";
+  const toolsRaw =
+    process.env.TOOLS !== undefined
+      ? process.env.TOOLS
+      : readTrimmed(path.join(home, ".config/dotfiles/tools"));
+  const tools = new Set(toolsRaw.split(/\s+/).filter(Boolean));
+  return { profile, tools };
+}
+
+function parsePacks(skillsTxtPath, { profile, tools }) {
+  const packs = [];
+  const raw = fs.readFileSync(skillsTxtPath, "utf8");
+  for (const rawLine of raw.split(/\r?\n/)) {
+    const line = rawLine.replace(/#.*$/, "").trim();
+    if (!line) continue;
+    const words = line.split(/\s+/);
+    let only = "";
+    let prefix = "";
+    let usePlugin = false;
+    const positional = [];
+    for (const w of words) {
+      if (w.startsWith("only:")) only = w.slice(5);
+      else if (w.startsWith("prefix:")) prefix = w.slice(7);
+      else if (w === "plugin") usePlugin = true;
+      else positional.push(w);
+    }
+    if (!prefix) continue;
+    if (only && only !== profile && !tools.has(only)) continue;
+    const source = positional[0];
+    if (!source) continue;
+    if (!PREFIX_RE.test(prefix)) {
+      throw new Error(`Invalid prefix '${prefix}' for ${source}`);
+    }
+    packs.push({ source, prefix, usePlugin });
+  }
+  return packs;
+}
+
+function sourceToCloneUrl(source) {
+  if (source.startsWith("/") || source.startsWith("./") || source.startsWith("../")) {
+    return path.resolve(source);
+  }
+  if (/^(https?:\/\/|git@|ssh:\/\/|file:\/\/)/.test(source)) return source;
+  return `https://github.com/${source}.git`;
+}
+
+function parseFrontmatterName(skillMd) {
+  const m = skillMd.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return null;
+  const nm = m[1].match(/^name:\s*(?:"([^"]+)"|'([^']+)'|([^\s#]+))/m);
+  return nm ? (nm[1] || nm[2] || nm[3]).trim() : null;
+}
+
+function discoverSkills(repoDir, usePlugin) {
+  const found = [];
+  if (usePlugin) {
+    const pluginPath = path.join(repoDir, ".claude-plugin/plugin.json");
+    if (!fs.existsSync(pluginPath)) {
+      throw new Error(`'plugin' requested, but ${pluginPath} was not found`);
+    }
+    const plugin = JSON.parse(fs.readFileSync(pluginPath, "utf8"));
+    const entries = Array.isArray(plugin.skills) ? plugin.skills : [];
+    for (const rel of entries) {
+      const dir = path.resolve(repoDir, rel);
+      const mdPath = path.join(dir, "SKILL.md");
+      if (!fs.existsSync(mdPath)) {
+        throw new Error(`Plugin skill missing SKILL.md: ${rel}`);
+      }
+      const name = parseFrontmatterName(fs.readFileSync(mdPath, "utf8")) || path.basename(dir);
+      found.push({ name, dir });
+    }
+  } else {
+    const root = fs.existsSync(path.join(repoDir, "skills"))
+      ? path.join(repoDir, "skills")
+      : repoDir;
+    const walk = (dir) => {
+      if (fs.existsSync(path.join(dir, "SKILL.md"))) {
+        const name =
+          parseFrontmatterName(fs.readFileSync(path.join(dir, "SKILL.md"), "utf8")) ||
+          path.basename(dir);
+        found.push({ name, dir });
+        return;
+      }
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isSymbolicLink()) continue;
+        if (!entry.isDirectory()) continue;
+        if (entry.name === ".git" || entry.name === "node_modules") continue;
+        walk(path.join(dir, entry.name));
+      }
+    };
+    walk(root);
+  }
+
+  found.sort((a, b) => a.name.localeCompare(b.name));
+  const seen = new Set();
+  for (const s of found) {
+    if (seen.has(s.name)) throw new Error(`Duplicate skill '${s.name}' in pack`);
+    seen.add(s.name);
+  }
+  return found;
+}
+
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function buildRewriter(skillNames, prefix) {
+  const sorted = [...skillNames].sort((a, b) => b.length - a.length);
+  const allAlt = sorted.map(escapeRegExp).join("|");
+  const hyphenated = sorted.filter((n) => n.includes("-"));
+  const single = sorted.filter((n) => !n.includes("-"));
+  const hyphAlt = hyphenated.map(escapeRegExp).join("|");
+  const singleAlt = single.map(escapeRegExp).join("|");
+  const nameSet = new Set(skillNames);
+
+  const relPathRe = new RegExp(`(\\.\\./)(${allAlt})(/)`, "g");
+  const slashRe = new RegExp(
+    `(?<![a-zA-Z0-9_./:-])/((?:${allAlt}))(?![a-zA-Z0-9_/-])`,
+    "g",
+  );
+  const skillToolRe = new RegExp(
+    `(\\bSkill tool(?:\\s+twice,)?\\s+(?:with|for)\\s+)(["'\`])(${allAlt})\\2(?:(\\s+and\\s+)(["'\`])(${allAlt})\\5)?`,
+    "g",
+  );
+  const hyphBacktickRe = hyphAlt
+    ? new RegExp("(?<!/)`(" + hyphAlt + ")`(?!/)", "g")
+    : null;
+  const singleArticleSkillRe = singleAlt
+    ? new RegExp("(\\b(?:the|a)\\s+)`(" + singleAlt + ")`(\\s+skill\\b)", "gi")
+    : null;
+  const singleBeforePhraseRe = singleAlt
+    ? new RegExp(
+        "(\\b(?:that's|belong to|counterpart to|written by|list it for|block in|bar|use)\\s+)`(" +
+          singleAlt +
+          ")`",
+        "gi",
+      )
+    : null;
+  const singleAfterPhraseRe = singleAlt
+    ? new RegExp(
+        "`(" +
+          singleAlt +
+          ")`(\\s+(?:skill\\b|in your available skills\\b|is installed\\b|isn't installed\\b|applies\\b))",
+        "g",
+      )
+    : null;
+  const skillsLikeRe = /(\bSkills like\s+)((?:`[^`]+`(?:,\s*|\s+and\s+))+`[^`]+`)/g;
+  const usePlainRe = new RegExp(
+    `(\\buse\\s+)(${allAlt})(?=[.;,:\\s)]|$)(?:(\\s+or\\s+)(${allAlt})(?=[.;,:\\s)]|$))?`,
+    "g",
+  );
+  const useBacktickRe = new RegExp("(\\buse\\s+)`(" + allAlt + ")`", "gi");
+
+  const rewriteText = (text) => {
+    let out = text;
+    out = out.replace(relPathRe, (_, p1, name, p3) => `${p1}${prefix}${name}${p3}`);
+    out = out.replace(slashRe, (_, name) => `/${prefix}${name}`);
+    out = out.replace(
+      skillToolRe,
+      (_, lead, q1, n1, conj, q2, n2) =>
+        `${lead}${q1}${prefix}${n1}${q1}${conj ? `${conj}${q2}${prefix}${n2}${q2}` : ""}`,
+    );
+    if (hyphBacktickRe) {
+      out = out.replace(hyphBacktickRe, (_, name) => "`" + prefix + name + "`");
+    }
+    if (singleArticleSkillRe) {
+      out = out.replace(
+        singleArticleSkillRe,
+        (_, lead, name, tail) => `${lead}\`${prefix}${name}\`${tail}`,
+      );
+    }
+    if (singleBeforePhraseRe) {
+      out = out.replace(
+        singleBeforePhraseRe,
+        (_, lead, name) => `${lead}\`${prefix}${name}\``,
+      );
+    }
+    if (singleAfterPhraseRe) {
+      out = out.replace(
+        singleAfterPhraseRe,
+        (_, name, tail) => `\`${prefix}${name}\`${tail}`,
+      );
+    }
+    out = out.replace(skillsLikeRe, (_, lead, list) => {
+      const updated = list.replace(/`([^`]+)`/g, (m, name) =>
+        nameSet.has(name) ? `\`${prefix}${name}\`` : m,
+      );
+      return `${lead}${updated}`;
+    });
+    out = out.replace(useBacktickRe, (_, lead, name) => `${lead}\`${prefix}${name}\``);
+    out = out.replace(
+      usePlainRe,
+      (_, lead, n1, conj, n2) =>
+        `${lead}${prefix}${n1}${conj ? `${conj}${prefix}${n2}` : ""}`,
+    );
+    return out;
+  };
+
+  return function rewriteFile(content, { isSkillMd, skillName }) {
+    const lines = content.split("\n");
+    let inFrontmatter = false;
+    let frontmatterDone = false;
+    let fence = null;
+    const nameLineRe = new RegExp(
+      `^(name:\\s*)(["']?)${escapeRegExp(skillName)}\\2(\\s*)$`,
+    );
+
+    const out = lines.map((line, idx) => {
+      if (isSkillMd && idx === 0 && line.trim() === "---") {
+        inFrontmatter = true;
+        return line;
+      }
+      if (inFrontmatter) {
+        if (line.trim() === "---") {
+          inFrontmatter = false;
+          frontmatterDone = true;
+          return line;
+        }
+        if (nameLineRe.test(line)) {
+          return line.replace(nameLineRe, `$1$2${prefix}${skillName}$2$3`);
+        }
+        return rewriteText(line);
+      }
+
+      const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/);
+      if (fenceMatch) {
+        const marker = fenceMatch[1][0];
+        if (!fence) fence = marker;
+        else if (fence === marker) fence = null;
+        return line;
+      }
+      if (fence) return line;
+      return rewriteText(line);
+    });
+
+    return out.join("\n");
+  };
+}
+
+function collectFiles(dir, base = dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isSymbolicLink()) continue;
+    const full = path.join(dir, entry.name);
+    const rel = path.relative(base, full);
+    if (entry.isDirectory()) out.push(...collectFiles(full, base));
+    else if (entry.isFile()) out.push({ full, rel });
+  }
+  return out;
+}
+
+function copyAndRewriteSkill(srcDir, dstDir, skillName, rewriteFile, diffs) {
+  fs.mkdirSync(dstDir, { recursive: true });
+  for (const { full, rel } of collectFiles(srcDir)) {
+    const target = path.join(dstDir, rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    const stat = fs.statSync(full);
+    const ext = path.extname(rel).toLowerCase();
+    if (TEXT_EXTS.has(ext)) {
+      const before = fs.readFileSync(full, "utf8");
+      const after = rewriteFile(before, { isSkillMd: rel === "SKILL.md", skillName });
+      if (diffs && before !== after) {
+        const bLines = before.split("\n");
+        const aLines = after.split("\n");
+        const hunks = [];
+        for (let i = 0; i < Math.max(bLines.length, aLines.length); i++) {
+          if (bLines[i] !== aLines[i]) {
+            hunks.push({ line: i + 1, before: bLines[i], after: aLines[i] });
+          }
+        }
+        diffs.push({ file: `${skillName}/${rel}`, hunks });
+      }
+      if (dstDir) {
+        fs.writeFileSync(target, after, "utf8");
+        fs.chmodSync(target, stat.mode);
+      }
+    } else if (dstDir) {
+      fs.copyFileSync(full, target);
+      fs.chmodSync(target, stat.mode);
+    }
+  }
+}
+
+function readManifest(manifestPath) {
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+  } catch {
+    return { packs: {} };
+  }
+}
+
+function writeManifest(manifestPath, manifest) {
+  fs.mkdirSync(path.dirname(manifestPath), { recursive: true });
+  fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+}
+
+function ensureLink(targetDir, linkPath) {
+  fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+  const relTarget = path.relative(path.dirname(linkPath), targetDir);
+  try {
+    const stat = fs.lstatSync(linkPath);
+    if (stat.isSymbolicLink() && fs.readlinkSync(linkPath) === relTarget) return false;
+    fs.rmSync(linkPath, { recursive: true, force: true });
+  } catch {
+    // does not exist
+  }
+  fs.symlinkSync(relTarget, linkPath);
+  return true;
+}
+
+function removeInstalledSkill(name, dirs) {
+  for (const dir of [dirs.canonical, ...dirs.linkDirs]) {
+    const p = path.join(dir, name);
+    try {
+      fs.lstatSync(p);
+      fs.rmSync(p, { recursive: true, force: true });
+    } catch {
+      // absent
+    }
+  }
+}
+
+function allPresentOnDisk(names, canonicalDir) {
+  return (
+    names.length > 0 &&
+    names.every((n) => fs.existsSync(path.join(canonicalDir, n, "SKILL.md")))
+  );
+}
+
+function main() {
+  const opts = parseArgs(process.argv.slice(2));
+  if (opts.help) {
+    usage();
+    return;
+  }
+
+  const dotfiles = resolveDotfiles(opts.dotfiles, opts.home);
+  const skillsTxt = path.join(dotfiles, "packages/skills.txt");
+  if (!fs.existsSync(skillsTxt)) {
+    console.error(`sync-skill-packs: ${skillsTxt} not found`);
+    process.exit(1);
+  }
+
+  const env = loadProfileAndTools(opts.home);
+  let packs = parsePacks(skillsTxt, env);
+  if (opts.pack) {
+    const want = opts.pack.replace(/-$/, "");
+    packs = packs.filter((p) => p.prefix.replace(/-$/, "") === want);
+    if (packs.length === 0) {
+      console.error(`sync-skill-packs: no pack matching '${opts.pack}' in ${skillsTxt}`);
+      process.exit(1);
+    }
+  }
+
+  const dirs = {
+    canonical: path.join(opts.home, ".agents/skills"),
+    linkDirs: [
+      path.join(opts.home, ".claude/skills"),
+      path.join(opts.home, ".gemini/config/skills"),
+    ],
+  };
+  const manifestPath = path.join(opts.home, ".agents/.skill-packs.json");
+  const manifest = readManifest(manifestPath);
+
+  for (const pack of packs) {
+    const prev = manifest.packs[pack.prefix];
+
+    if (
+      opts.ensure &&
+      !opts.diff &&
+      !opts.dryRun &&
+      prev &&
+      prev.source === pack.source &&
+      allPresentOnDisk(prev.skills || [], dirs.canonical)
+    ) {
+      let repaired = 0;
+      for (const installedName of prev.skills) {
+        const canonical = path.join(dirs.canonical, installedName);
+        for (const linkDir of dirs.linkDirs) {
+          if (ensureLink(canonical, path.join(linkDir, installedName))) repaired++;
+        }
+      }
+      if (repaired > 0) {
+        console.log(
+          `    ${pack.source} (${pack.prefix}*): repaired ${repaired} symlink(s)`,
+        );
+      } else {
+        console.log(
+          `    \x1b[2m${pack.source} (${pack.prefix}*, ${prev.skills.length} skills) already installed, skipping\x1b[0m`,
+        );
+      }
+      continue;
+    }
+
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sync-skill-packs-"));
+    try {
+      const cloneDir = path.join(tmp, "repo");
+      const stageDir = path.join(tmp, "stage");
+      const url = sourceToCloneUrl(pack.source);
+      execFileSync("git", ["clone", "--depth", "1", "--quiet", url, cloneDir], {
+        stdio: ["ignore", "pipe", "inherit"],
+      });
+      const commit = execFileSync("git", ["-C", cloneDir, "rev-parse", "HEAD"], {
+        encoding: "utf8",
+      }).trim();
+
+      const skills = discoverSkills(cloneDir, pack.usePlugin);
+      const rewriteFile = buildRewriter(
+        skills.map((s) => s.name),
+        pack.prefix,
+      );
+      const diffs = [];
+      const installedNames = [];
+
+      for (const s of skills) {
+        const newName = `${pack.prefix}${s.name}`;
+        installedNames.push(newName);
+        copyAndRewriteSkill(
+          s.dir,
+          path.join(stageDir, newName),
+          s.name,
+          rewriteFile,
+          diffs,
+        );
+      }
+
+      if (opts.diff) {
+        console.log(
+          `\n=== ${pack.source} (${pack.prefix}*, ${skills.length} skills, ${commit.slice(0, 7)}) ===`,
+        );
+        for (const { file, hunks } of diffs) {
+          console.log(`--- ${file}`);
+          for (const h of hunks) {
+            console.log(`  L${h.line}:`);
+            console.log(`  - ${h.before}`);
+            console.log(`  + ${h.after}`);
+          }
+        }
+        continue;
+      }
+
+      const prevSet = new Set(prev?.skills || []);
+      const nextSet = new Set(installedNames);
+      const removed = [...prevSet].filter((n) => !nextSet.has(n));
+
+      if (opts.dryRun) {
+        console.log(
+          `    [dry-run] ${pack.source} (${pack.prefix}*): ${installedNames.length} skills (${commit.slice(0, 7)})${
+            removed.length ? `, would remove: ${removed.join(", ")}` : ""
+          }`,
+        );
+        continue;
+      }
+
+      fs.mkdirSync(dirs.canonical, { recursive: true });
+      for (const newName of installedNames) {
+        const src = path.join(stageDir, newName);
+        const dst = path.join(dirs.canonical, newName);
+        const tmpDst = path.join(dirs.canonical, `.tmp-${newName}-${process.pid}`);
+        fs.rmSync(tmpDst, { recursive: true, force: true });
+        fs.cpSync(src, tmpDst, { recursive: true });
+        fs.rmSync(dst, { recursive: true, force: true });
+        fs.renameSync(tmpDst, dst);
+        for (const linkDir of dirs.linkDirs) {
+          ensureLink(dst, path.join(linkDir, newName));
+        }
+      }
+
+      for (const oldName of removed) {
+        removeInstalledSkill(oldName, dirs);
+      }
+
+      manifest.packs[pack.prefix] = {
+        source: pack.source,
+        commit,
+        skills: installedNames,
+      };
+      writeManifest(manifestPath, manifest);
+
+      console.log(
+        `    ${pack.source} (${pack.prefix}*): synced ${installedNames.length} skills (${commit.slice(0, 7)})${
+          removed.length ? `, removed ${removed.length}` : ""
+        }`,
+      );
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  }
+}
+
+try {
+  main();
+} catch (err) {
+  console.error(`sync-skill-packs: ${err.message}`);
+  process.exit(1);
+}

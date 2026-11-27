@@ -1,50 +1,26 @@
-# Agent skills installed with the skills CLI (github.com/vercel-labs/skills), globally:
-# into ~/.agents/skills (Codex, opencode) and linked into ~/.claude/skills (Claude Code).
+# Global agent skills installed by install.sh into ~/.agents/skills (Codex, opencode),
+# symlinked into ~/.claude/skills (Claude Code, Grok Build) and ~/.gemini/config/skills
+# (Antigravity CLI, plus T3 Code's isolated Antigravity via config/skills symlink).
 #
+# Prefixed packs (installed & internal cross-references rewritten by sync-skill-packs):
+#   <source> prefix:<pfx> [plugin]
+#     `plugin` reads .claude-plugin/plugin.json instead of scanning every subdirectory.
+#     Update with `sync-skill-packs` (use `--diff` to inspect rewrites).
+#
+# Plain skills (installed via the skills CLI, github.com/vercel-labs/skills):
 #   <source>                    every skill in the repo; skipped once any of them is installed
 #   <source> <skill>            just that skill (its frontmatter name; `skills add <source> --list`)
 #   <source> <skill> <new-name> that skill, renamed, e.g. when two sources ship the same name
+#     Update with `skills update -g`.
 #
 # Any line can end in only:<profile> or only:<tool> to install it only on that profile
 # (personal, work) or when that tool is in TOOLS (see install.sh).
 #
-# Sources are GitHub owner/repo (or a github.com URL). `skills update -g` updates them all,
-# renamed ones included.
+# Optional per-project / per-VM skills live in packages/optional-skills.txt (run `pick-skills`).
 
-# Whole repos
-cloudflare/skills          only:personal
-vercel-labs/agent-skills   only:personal
+# Prefixed packs
+mattpocock/skills     prefix:mp-    plugin
+emilkowalski/skills   prefix:ek-    only:personal
 
-# Matt Pocock: the set the mattpocock-skills Claude plugin ships. Not renamed: they call
-# each other by name ("call the Skill tool with tdd"), which a rename would break.
-mattpocock/skills   ask-matt
-mattpocock/skills   code-review
-mattpocock/skills   codebase-design
-mattpocock/skills   diagnosing-bugs
-mattpocock/skills   domain-modeling
-mattpocock/skills   grill-with-docs
-mattpocock/skills   implement
-mattpocock/skills   implement-spec
-mattpocock/skills   improve-codebase-architecture
-mattpocock/skills   pr
-mattpocock/skills   prototype
-mattpocock/skills   research
-mattpocock/skills   retro
-mattpocock/skills   setup-matt-pocock-skills
-mattpocock/skills   tdd
-mattpocock/skills   to-spec
-mattpocock/skills   to-tickets
-mattpocock/skills   triage
-mattpocock/skills   wayfinder
-mattpocock/skills   wizard
-mattpocock/skills   grill-me
-mattpocock/skills   grilling
-mattpocock/skills   handoff
-mattpocock/skills   teach
-mattpocock/skills   to-questionnaire
-mattpocock/skills   wait-what
-mattpocock/skills   writing-for-agents
-
-# Single skills
-vercel-labs/agent-browser   agent-browser
-anthropics/skills           frontend-design
+# Single global skills
+anthropics/skills     frontend-design
